@@ -171,5 +171,4 @@ tests/
 *.csv
 
 **/*.mat
-**/*.toml
 **/test.py

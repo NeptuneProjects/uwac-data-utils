@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uwac-data-utils"
+description = "A Python package for handling underwater acoustic data formats."
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE.txt"}
+keywords = ["underwater acoustics", "signal processing", "data"]
+authors = [{name = "William Jenkins", email = "wfjenkins@ucsd.edu"}]
+dependencies = ["numpy", "scipy"]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://neptuneprojects.github.io/BathyReq/"
+Repository = "https://github.com/NeptuneProjects/BathyReq"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["data_utils*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "data_utils.__version__"}
