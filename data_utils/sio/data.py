@@ -36,11 +36,9 @@ class SIODataHeader:
     BpS: Optional[int] = None
     tfReal: Optional[int] = None
     SpC: Optional[int] = None
-    RpC: Optional[int] = None
-    SpR: Optional[int] = None
+    bs: Optional[int] = None
     fname: Optional[str] = None
     comment: Optional[str] = None
-    bs: Optional[int] = None
 
     @property
     def __description(self) -> str:
@@ -56,6 +54,16 @@ class SIODataHeader:
             comment = Comment String
             bs = Endian check value, should be 32677
             """
+    
+    @property
+    def RpC(self) -> int:
+        """Records per channel."""
+        return ceil(self.Nr / self.Nc)
+    
+    @property
+    def SpR(self) -> int:
+        """Samples per record."""
+        return int(self.BpR / self.BpS)
 
 
 class SIODataHandler:
@@ -333,9 +341,7 @@ def sioread(
         bs = unpack(endian + "I", f.read(4))[0]  # should be 32677
         fname = unpack("24s", f.read(24))[0].decode()  # File name
         comment = unpack("72s", f.read(72))[0].decode()  # Comment String
-        RpC = ceil(Nr / Nc)  # # of Records per Channel
-        SpR = int(BpR / BpS)  # # of Samples per Record
-
+        
         # Header object, for output
         header = SIODataHeader(
             ID=ID,
@@ -345,12 +351,12 @@ def sioread(
             BpS=BpS,
             tfReal=tfReal,
             SpC=SpC,
-            RpC=RpC,
-            SpR=SpR,
+            bs=bs,
             fname=fname,
             comment=comment,
-            bs=bs,
         )
+
+        SpR=header.SpR
 
         # If either channel or # of samples is 0, then return just header
         if (Ns == 0) or ((len(channels) == 1) and (channels[0] == -1)):
