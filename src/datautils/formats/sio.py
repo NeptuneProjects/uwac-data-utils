@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 from concurrent.futures import ProcessPoolExecutor
@@ -14,7 +13,7 @@ from typing import Optional, Union
 
 import numpy as np
 from scipy.io import savemat, wavfile
-from data_utils.data import DataFormat, DataStream
+from datautils.stream import DataFormat, DataStream
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +24,10 @@ class SIOReadError(Exception):
 
 class SIOReadWarning(Warning):
     pass
+
+
+def read_header():
+    ...
 
 
 @dataclass
