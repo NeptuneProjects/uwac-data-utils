@@ -55,7 +55,7 @@ class DataStream:
         """Initializes data and time vector."""
         # Set time_init to 0 if not provided
         if self.time_init is None:
-            self.time_init = 0
+            self.time_init = np.timedelta64(0, "us")
 
         # Compute sampling rate if time_init and time_end are provided
         if (
@@ -71,7 +71,9 @@ class DataStream:
             and self.time_end is None
             and self.sampling_rate is not None
         ):
-            self.time_end = self.time_init + self.num_samples * self.sampling_rate
+            self.time_end = self.time_init + np.timedelta64(
+                int(1e6 * self.num_samples / self.sampling_rate), "us"
+            )
 
     def load(
         self, filename: Union[str, bytes, os.PathLike], exclude: Optional[str] = None
