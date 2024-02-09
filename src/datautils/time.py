@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from datautils.read import Header
+from datautils.data import Header
 
 
 @dataclass

@@ -25,7 +25,6 @@ class DataFormat(Enum):
     WAV = "wav"
 
 
-
 @dataclass
 class DataStream:
     """Contains acoustic data and time vector."""
@@ -65,9 +64,7 @@ class DataStream:
                 int(1e6 * self.num_samples / self.sampling_rate), "us"
             )
 
-    def load(
-        self, filename: Path, exclude: Optional[str] = None
-    ) -> None:
+    def load(self, filename: Path, exclude: Optional[str] = None) -> None:
         """Loads data from numpy file."""
         data = np.load(filename)
         try:
@@ -127,9 +124,6 @@ class DataStream:
     #     if self.X is None:
     #         return NoDataWarning("No data in variable 'X' to slice.")
     #     return DataStream(X=self.X[index], t=self.t[index])
-
-
-
 
 
 # class DataHandler(Protocol):
