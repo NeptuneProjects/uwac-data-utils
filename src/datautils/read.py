@@ -7,8 +7,8 @@ from typing import Optional, Protocol
 import numpy as np
 
 from datautils.formats.shru import format_shru_headers, read_shru_headers
-from datautils.formats.sio import read_sio_headers, format_sio_headers
-from datautils.formats.wav import read_wav_headers, format_wav_headers
+from datautils.formats.sio import format_sio_headers, read_sio_headers
+from datautils.formats.wav import format_wav_headers, read_wav_headers
 
 
 class FormatCheckerMixin:
