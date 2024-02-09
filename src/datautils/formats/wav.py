@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
 
-def read_header():
+def read_wav_headers():
+    ...
+
+    
+def format_wav_headers():
     ...

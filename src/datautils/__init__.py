@@ -3,6 +3,7 @@
 
 import datautils.catalogue
 import datautils.query
-
+import datautils.read
+import datautils.time
 
 __version__ = "0.0.1"

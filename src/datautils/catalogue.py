@@ -2,13 +2,15 @@
 
 from dataclasses import dataclass
 import json
+import logging
 from pathlib import Path
-import tomllib
 
 import numpy as np
 import scipy
 
-from datautils.time import convert_timestamp_to_yyd
+from datautils.time import convert_timestamp_to_yyd, get_timestamp, correct_clock_drift
+from datautils.query import FileInfoQuery
+from datautils.read import read_headers, apply_header_formatting, get_sampling_rate
 
 
 @dataclass
@@ -16,20 +18,21 @@ class Catalogue:
     filenames: list[Path]
     timestamps: list[list[np.datetime64]]
     timestamps_orig: list[list[np.datetime64]]
-    rhfs_orig: float
-    rhfs: float
+    sampling_rate_orig: float
+    sampling_rate: float
     fixed_gain: list[float]
     hydrophone_sensitivity: list[float]
     hydrophone_SN: list[str]
 
     def save_to_json(self, savepath: Path):
+        
         mdict = {
             "SHRU": {
                 "filenames": [str(f) for f in self.filenames],
-                "timestamps": [t.tolist() for t in self.timestamps],
-                "timestamps_orig": [t.tolist() for t in self.timestamps_orig],
-                "rhfs_orig": self.rhfs_orig,
-                "rhfs": self.rhfs,
+                "timestamps": [[np.datetime_as_string(t) for t in l] for l in self.timestamps],
+                "timestamps_orig": [[np.datetime_as_string(t) for t in l] for l in self.timestamps_orig],
+                "sampling_rate_orig": self.sampling_rate_orig,
+                "sampling_rate": self.sampling_rate,
                 "fixed_gain": self.fixed_gain,
                 "hydrophone_sensitivity": self.hydrophone_sensitivity,
                 "hydrophone_SN": self.hydrophone_SN,
@@ -45,8 +48,8 @@ class Catalogue:
                 "filenames": [str(f) for f in self.filenames],
                 "timestamps": self._to_ydarray(self.timestamps),
                 "timestamps_orig": self._to_ydarray(self.timestamps_orig),
-                "rhfs_orig": self.rhfs_orig,
-                "rhfs": self.rhfs,
+                "rhfs_orig": self.sampling_rate_orig,
+                "rhfs": self.sampling_rate,
                 "fixed_gain": self.fixed_gain,
                 "hydrophone_sensitivity": self.hydrophone_sensitivity,
                 "hydrophone_SN": self.hydrophone_SN,
@@ -74,7 +77,69 @@ class Catalogue:
         return arr
 
 
-# def build_fileinfo(fquery: list[query.FileInfoQuery]) -> None:
-#     for fq in fquery:
-#         fi = read_shru(fq)
-#         fi.save_to_mat(savepath=Path(fq.data.destination) / f"{fq.serial}_FileInfo.mat")
+def build_catalogues(queries: list[FileInfoQuery]) -> None:
+    for q in queries:
+        catalogue = _build_catalogue(q)
+        catalogue.save_to_mat(
+            savepath=Path(q.data.destination) / f"{q.serial}_FileInfo.mat"
+        )
+        catalogue.save_to_json(
+            savepath=Path(q.data.destination) / f"{q.serial}_FileInfo.json"
+        )
+
+
+def _build_catalogue(query: FileInfoQuery) -> Catalogue:
+    files = sorted(Path(query.data.directory).glob(query.data.glob_pattern))
+
+    if len(files) == 0:
+        logging.error("No SHRU files found in directory.")
+        raise FileNotFoundError("No SHRU files found in directory.")
+
+    filenames = []
+    timestamps = []
+    timestamps_orig = []
+    for i, f in enumerate(files):
+        headers, file_format = read_headers(f, file_format=query.data.file_format)
+
+        if len(headers) == 0:
+            logging.warning(f"File {f} has no valid records.")
+            continue
+        logging.info(f"File {f} has {len(headers)} valid record(s).")
+
+        filenames.append(f)
+        file_timestamps_orig = []
+        file_timestamps = []
+        for record in headers:
+            ts_orig = get_timestamp(record)
+            ts = correct_clock_drift(ts_orig, query.clock)
+            file_timestamps_orig.append(ts_orig)
+            file_timestamps.append(ts)
+
+        # Apply format-specific corrections
+        headers, file_timestamps, file_timestamps_orig = apply_header_formatting(
+            file_format=file_format,
+            file_iter=i,
+            headers=headers,
+            file_timestamps=file_timestamps,
+            file_timestamps_orig=file_timestamps_orig,
+        )
+
+        timestamps.append(file_timestamps)
+        timestamps_orig.append(file_timestamps_orig)
+
+        logging.debug(f"Header extracted from {f}.")
+
+    # Extract sampling rate:
+    sampling_rate_orig = get_sampling_rate(file_format, headers)
+    sampling_rate = sampling_rate_orig / (1 + query.clock.drift_rate / 24 / 3600)
+
+    return Catalogue(
+        filenames=filenames,
+        timestamps=timestamps,
+        timestamps_orig=timestamps_orig,
+        sampling_rate_orig=sampling_rate_orig,
+        sampling_rate=sampling_rate,
+        fixed_gain=[query.hydrophones.fixed_gain] * len(filenames),
+        hydrophone_sensitivity=[query.hydrophones.sensitivity] * len(filenames),
+        hydrophone_SN=[query.serial] * len(filenames),
+    )

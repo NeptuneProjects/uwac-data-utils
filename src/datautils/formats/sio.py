@@ -26,9 +26,13 @@ class SIOReadWarning(Warning):
     pass
 
 
-def read_header():
+def read_sio_headers():
     ...
 
+
+def format_sio_headers():
+    ...
+    
 
 @dataclass
 class SIODataHeader:

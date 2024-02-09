@@ -12,6 +12,6 @@ class Hydrophone:
 
 @dataclass
 class HydrophoneSpecs:
-    serial_number: list[int]
     fixed_gain: list[float]
     sensitivity: list[float]
+    serial_number: list[int]
