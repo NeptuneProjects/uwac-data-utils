@@ -35,7 +35,7 @@ def format_sio_headers():
     
 
 @dataclass
-class SIODataHeader:
+class SIOHeader:
     ID: Optional[int] = None
     Nr: Optional[int] = None
     BpR: Optional[int] = None
@@ -350,7 +350,7 @@ def sioread(
         comment = unpack("72s", f.read(72))[0].decode()  # Comment String
         
         # Header object, for output
-        header = SIODataHeader(
+        header = SIOHeader(
             ID=ID,
             Nr=Nr,
             BpR=BpR,
