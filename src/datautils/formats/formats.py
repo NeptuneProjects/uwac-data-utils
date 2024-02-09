@@ -52,6 +52,6 @@ def validate_file_format(
         file_format = FileFormat(file_format)
     if file_format is None:
         file_format = get_file_format(suffix)
-    if get_file_format(suffix) != file_format:
+    if suffix is not None and get_file_format(suffix) != file_format:
         raise ValueError("The provided 'suffix' and 'file_format' are not consistent.")
     return file_format
