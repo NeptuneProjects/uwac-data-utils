@@ -18,8 +18,8 @@ Homepage = "https://neptuneprojects.github.io/BathyReq/"
 Repository = "https://github.com/NeptuneProjects/BathyReq"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["data_utils*"]
+where = ["src/"]
+# include = ["src/data_utils*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "data_utils.__version__"}
