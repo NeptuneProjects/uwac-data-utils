@@ -56,13 +56,21 @@ class DataStream:
         # Set time_init to 0 if not provided
         if self.time_init is None:
             self.time_init = 0
-        
+
         # Compute sampling rate if time_init and time_end are provided
-        if self.time_init is not None and self.time_end is not None and self.sampling_rate is None:
+        if (
+            self.time_init is not None
+            and self.time_end is not None
+            and self.sampling_rate is None
+        ):
             self.sampling_rate = (self.time_end - self.time_init) / self.num_samples
-        
+
         # Set time_end if time_init and sampling rate are provided
-        if self.time_init is not None and self.time_end is None and self.sampling_rate is not None:
+        if (
+            self.time_init is not None
+            and self.time_end is None
+            and self.sampling_rate is not None
+        ):
             self.time_end = self.time_init + self.num_samples * self.sampling_rate
 
     def load(
@@ -100,7 +108,6 @@ class DataStream:
             NoDataWarning("No data in variable 't' to save.")
         np.savez(filename, X=self.waveform, t=self.t)
 
-
     # TODO: Implement these functionalities
     # def slice_by_time(
     #     self, time_init: Union[float, np.datetime64], time_end: Union[float, np.datetime64]
@@ -110,19 +117,19 @@ class DataStream:
     #         return NoDataWarning("No data in variable 't' to slice.")
     #     idx = np.where((self.t >= time_init) & (self.t <= time_end))
     #     return DataStream(X=self.X[idx], t=self.t[idx])
-    
+
     # def slice_by_channel(self, channel: int) -> "DataStream":
     #     """Slices data by channel."""
     #     if self.X is None:
     #         return NoDataWarning("No data in variable 'X' to slice.")
     #     return DataStream(X=self.X[:, channel], t=self.t)
-    
+
     # def slice_by_channels(self, channels: list[int]) -> "DataStream":
     #     """Slices data by channels."""
     #     if self.X is None:
     #         return NoDataWarning("No data in variable 'X' to slice.")
     #     return DataStream(X=self.X[:, channels], t=self.t)
-    
+
     # def slice_by_index(self, index: Union[int, slice]) -> "DataStream":
     #     """Slices data by index."""
     #     if self.X is None:
