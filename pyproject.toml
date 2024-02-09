@@ -18,7 +18,6 @@ Repository = "https://github.com/NeptuneProjects/uwac-data-utils"
 
 [tool.setuptools.packages.find]
 where = ["src/"]
-# include = ["src/datautils*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "datautils.__version__"}
