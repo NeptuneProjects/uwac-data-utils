@@ -161,14 +161,11 @@ cython_debug/
 
 # OS
 .DS_Store
+
+# Workspace
 .vscode
 docs/
-deprecated/
-outputs/
 tests/
-**/*/notebooks/
 *.png
 *.csv
-
 **/*.mat
-**/test.py
