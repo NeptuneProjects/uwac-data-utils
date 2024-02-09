@@ -14,12 +14,11 @@ dependencies = ["numpy", "scipy"]
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://neptuneprojects.github.io/BathyReq/"
-Repository = "https://github.com/NeptuneProjects/BathyReq"
+Repository = "https://github.com/NeptuneProjects/uwac-data-utils"
 
 [tool.setuptools.packages.find]
 where = ["src/"]
-# include = ["src/data_utils*"]
+# include = ["src/datautils*"]
 
 [tool.setuptools.dynamic]
-version = {attr = "data_utils.__version__"}
+version = {attr = "datautils.__version__"}
