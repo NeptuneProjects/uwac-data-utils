@@ -13,7 +13,7 @@ from typing import Optional, Union
 
 import numpy as np
 from scipy.io import savemat, wavfile
-from datautils.stream import DataFormat, DataStream
+from datautils.data import DataFormat, DataStream
 
 log = logging.getLogger(__name__)
 

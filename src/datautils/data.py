@@ -2,10 +2,13 @@
 
 from dataclasses import dataclass
 from enum import Enum
-import os
-from typing import Any, Optional, Protocol, Union
+from pathlib import Path
+from typing import Optional, Protocol, Union
 
 import numpy as np
+
+
+class Header(Protocol): ...
 
 
 class NoDataWarning(Warning):
@@ -21,19 +24,6 @@ class DataFormat(Enum):
     NPZ = "npz"
     WAV = "wav"
 
-
-class DataHandler(Protocol):
-    def convert(self) -> Any:
-        """Converts data to specified formats."""
-        ...
-
-    def load_merged(self) -> Any:
-        """Loads merged numpy file."""
-        ...
-
-    def merge_numpy_files(self) -> Any:
-        """Merges numpy files."""
-        ...
 
 
 @dataclass
@@ -76,7 +66,7 @@ class DataStream:
             )
 
     def load(
-        self, filename: Union[str, bytes, os.PathLike], exclude: Optional[str] = None
+        self, filename: Path, exclude: Optional[str] = None
     ) -> None:
         """Loads data from numpy file."""
         data = np.load(filename)
@@ -102,7 +92,7 @@ class DataStream:
             return NoDataWarning("No data in variable 'X'.")
         return self.waveform.shape[0]
 
-    def save(self, filename: Union[str, bytes, os.PathLike]) -> None:
+    def save(self, filename: Path) -> None:
         """Saves data to numpy file."""
         if self.waveform is None:
             NoDataWarning("No data in variable 'X' to save.")
@@ -137,3 +127,20 @@ class DataStream:
     #     if self.X is None:
     #         return NoDataWarning("No data in variable 'X' to slice.")
     #     return DataStream(X=self.X[index], t=self.t[index])
+
+
+
+
+
+# class DataHandler(Protocol):
+#     def convert(self) -> Any:
+#         """Converts data to specified formats."""
+#         ...
+
+#     def load_merged(self) -> Any:
+#         """Loads merged numpy file."""
+#         ...
+
+#     def merge_numpy_files(self) -> Any:
+#         """Merges numpy files."""
+#         ...
