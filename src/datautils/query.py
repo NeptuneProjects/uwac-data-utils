@@ -3,12 +3,21 @@
 from dataclasses import dataclass
 from pathlib import Path
 import tomllib
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 
 from datautils.hydrophone import HydrophoneSpecs
 from datautils.time import ClockParameters
+
+
+@dataclass
+class CatalogueQuery:
+    serial: str
+    catalogue: str
+    destination: str = "."
+    time_start: Optional[Union[float, np.datetime64]] = None
+    time_end: Optional[Union[float, np.datetime64]] = None
 
 
 @dataclass
@@ -27,7 +36,26 @@ class FileInfoQuery:
     hydrophones: HydrophoneSpecs
 
 
-def load_query(filename: Path) -> list[FileInfoQuery]:
+def load_catalogue_query(filename: Path) -> list[CatalogueQuery]:
+    with open(filename, "rb") as f:
+        config = tomllib.load(f)
+
+    queries = []
+    for serial, params in config.items():
+        queries.append(
+            CatalogueQuery(
+                serial,
+                params.get("catalogue"),
+                params.get("destination"),
+                np.datetime64(params.get("time_start", None)),
+                np.datetime64(params.get("time_end", None)),
+            )
+        )
+
+    return queries
+
+
+def load_file_query(filename: Path) -> list[FileInfoQuery]:
     with open(filename, "rb") as f:
         config = tomllib.load(f)
 
