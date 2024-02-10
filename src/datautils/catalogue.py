@@ -9,7 +9,7 @@ from typing import Optional, Protocol
 import numpy as np
 import scipy
 
-from datautils.data import DataStream
+from datautils.data import DataStream, read
 from datautils.formats.formats import FileFormat, validate_file_format
 from datautils.formats.shru import format_shru_headers, read_shru_headers
 from datautils.formats.sio import format_sio_headers, read_sio_headers
@@ -170,7 +170,7 @@ def _build_catalogue(query: FileInfoQuery) -> Catalogue:
         sampling_rate=sampling_rate,
         fixed_gain=[query.hydrophones.fixed_gain] * len(filenames),
         hydrophone_sensitivity=[query.hydrophones.sensitivity] * len(filenames),
-        hydrophone_SN=[query.serial] * len(filenames),
+        hydrophone_SN=[query.hydrophones.serial_number] * len(filenames),
     )
 
 
@@ -208,16 +208,46 @@ def get_timestamp(header: Header) -> np.datetime64:
     return convert_to_datetime(year, yd, minute, millisec, microsec)
 
 
-def read_data(query: CatalogueQuery) -> DataStream:
-    # TODO: Write function that takes a cataloguq query and returns a DataStream object
+def read_data_from_catalogue(query: CatalogueQuery) -> DataStream:
+    # TODO: Write function that takes a catalogue query and returns a DataStream object
     """Loads data from file."""
-
     # 1. Load catalogue:
-    catalogue = load_catalogue(query.catalogue)
+    catalogue = read_catalogue(query.catalogue)
 
-    # 2. Load data from files:
+    # 2. Filter files by time:
+    selected_files = select_files_by_time(
+        catalogue.filenames, query.time_start, query.time_end
+    )
     print(catalogue.filenames)
+    print(selected_files)
+
+    # 3. Load data from files:
+    # read(catalogue.filenames, query.time_start, query.time_end, query.channels)
+
     pass
+
+
+def select_files_by_time(
+    filenames: list[Path], time_start: np.datetime64, time_end: np.datetime64
+) -> list[Path]:
+    """Select files by time."""
+    if time_start > time_end:
+        raise ValueError("time_start must be less than time_end.")
+    if np.isnat(time_start) and np.isnat(time_end):
+        return filenames
+    if time_start is not None and np.isnat(time_end):
+        return [
+            f for f in filenames if get_timestamp(read_headers(f)[0][0]) >= time_start
+        ]
+    if np.isnat(time_start) and time_end is not None:
+        return [
+            f for f in filenames if get_timestamp(read_headers(f)[0][0]) <= time_end
+        ]
+    return [
+        f
+        for f in filenames
+        if time_start <= get_timestamp(read_headers(f)[0][0]) <= time_end
+    ]
 
 
 def read_headers(
@@ -229,7 +259,7 @@ def read_headers(
     return reader(filename), file_format
 
 
-def load_catalogue(filepath: Path) -> Catalogue:
+def read_catalogue(filepath: Path) -> Catalogue:
     with open(filepath, "r") as f:
         mdict = json.load(f)
 
