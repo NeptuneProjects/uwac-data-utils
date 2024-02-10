@@ -18,6 +18,7 @@ class CatalogueQuery:
     destination: str = "."
     time_start: Optional[Union[float, np.datetime64]] = None
     time_end: Optional[Union[float, np.datetime64]] = None
+    channels: Optional[Union[int, list[int]]] = None
 
 
 @dataclass
