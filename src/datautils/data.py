@@ -138,3 +138,8 @@ class DataStream:
 #     def merge_numpy_files(self) -> Any:
 #         """Merges numpy files."""
 #         ...
+
+
+def read():
+    print("This will be the primary reading function.")
+    return
