@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 license = {file = "LICENSE.txt"}
 keywords = ["underwater acoustics", "signal processing", "data"]
 authors = [{name = "William Jenkins", email = "wfjenkins@ucsd.edu"}]
-dependencies = ["numpy", "scipy"]
+dependencies = ["numpy", "polars", "scipy"]
 dynamic = ["version"]
 
 [project.urls]
