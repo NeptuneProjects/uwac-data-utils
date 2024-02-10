@@ -4,8 +4,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from datautils.data import Header
-
 
 @dataclass
 class ClockParameters:
@@ -49,13 +47,3 @@ def correct_clock_drift(
     days_diff = (timestamp - clock.time_check_0) / np.timedelta64(1, "D")
     drift = clock.drift_rate * days_diff
     return timestamp + np.timedelta64(int(1e6 * drift), "us")
-
-
-def get_timestamp(header: Header) -> np.datetime64:
-    """Return the timestamp of a data record header."""
-    year = header.date[0]
-    yd = header.date[1]
-    minute = header.time[0]
-    millisec = header.time[1]
-    microsec = header.microsec
-    return convert_to_datetime(year, yd, minute, millisec, microsec)

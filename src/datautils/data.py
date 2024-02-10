@@ -3,12 +3,11 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Protocol, Union
+from typing import Optional, Union
 
 import numpy as np
 
-
-class Header(Protocol): ...
+from datautils.query import CatalogueQuery
 
 
 class NoDataWarning(Warning):
@@ -64,16 +63,17 @@ class DataStream:
                 int(1e6 * self.num_samples / self.sampling_rate), "us"
             )
 
-    def load(self, filename: Path, exclude: Optional[str] = None) -> None:
-        """Loads data from numpy file."""
-        data = np.load(filename)
-        try:
-            if exclude is None or "X" not in exclude:
-                self.waveform = data.get("X", None)
-            if exclude is None or "t" not in exclude:
-                self.t = data.get("t", None)
-        except AttributeError:
-            self.waveform = data
+    # def load(self, filename: Path, exclude: Optional[str] = None) -> None:
+    #     """Loads data from numpy file."""
+    #     data = np.load(filename)
+    #     try:
+    #         if exclude is None or "X" not in exclude:
+    #             self.waveform = data.get("X", None)
+    #         if exclude is None or "t" not in exclude:
+    #             self.t = data.get("t", None)
+    #     except AttributeError:
+    #         self.waveform = data
+
 
     @property
     def num_channels(self) -> int:

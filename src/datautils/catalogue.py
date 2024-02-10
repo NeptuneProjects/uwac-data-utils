@@ -4,22 +4,27 @@ from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
 import numpy as np
 import scipy
 
-from datautils.data import Header
+from datautils.data import DataStream
 from datautils.formats.formats import FileFormat, validate_file_format
 from datautils.formats.shru import format_shru_headers, read_shru_headers
 from datautils.formats.sio import format_sio_headers, read_sio_headers
 from datautils.formats.wav import format_wav_headers, read_wav_headers
-from datautils.query import FileInfoQuery
-from datautils.time import convert_timestamp_to_yyd, get_timestamp, correct_clock_drift
+from datautils.query import CatalogueQuery, FileInfoQuery
+from datautils.time import (
+    convert_timestamp_to_yyd,
+    convert_to_datetime,
+    correct_clock_drift,
+)
 
 
 @dataclass
 class Catalogue:
+    file_format: FileFormat
     filenames: list[Path]
     timestamps: list[list[np.datetime64]]
     timestamps_orig: list[list[np.datetime64]]
@@ -30,9 +35,8 @@ class Catalogue:
     hydrophone_SN: list[str]
 
     def save_to_json(self, savepath: Path):
-
         mdict = {
-            "SHRU": {
+            self.file_format.value: {
                 "filenames": [str(f) for f in self.filenames],
                 "timestamps": [
                     [np.datetime_as_string(t) for t in l] for l in self.timestamps
@@ -53,7 +57,7 @@ class Catalogue:
 
     def save_to_mat(self, savepath: Path):
         mdict = {
-            "SHRU": {
+            self.file_format.value: {
                 "filenames": [str(f) for f in self.filenames],
                 "timestamps": self._to_ydarray(self.timestamps),
                 "timestamps_orig": self._to_ydarray(self.timestamps_orig),
@@ -84,6 +88,9 @@ class Catalogue:
                 arr[1, j, i] = yd_decimal
 
         return arr
+
+
+class Header(Protocol): ...
 
 
 def apply_header_formatting(
@@ -155,6 +162,7 @@ def _build_catalogue(query: FileInfoQuery) -> Catalogue:
     sampling_rate = sampling_rate_orig / (1 + query.clock.drift_rate / 24 / 3600)
 
     return Catalogue(
+        file_format=file_format,
         filenames=filenames,
         timestamps=timestamps,
         timestamps_orig=timestamps_orig,
@@ -190,6 +198,28 @@ def get_sampling_rate(file_format: FileFormat, headers: list[Header]) -> float:
         return headers[0].framerate
 
 
+def get_timestamp(header: Header) -> np.datetime64:
+    """Return the timestamp of a data record header."""
+    year = header.date[0]
+    yd = header.date[1]
+    minute = header.time[0]
+    millisec = header.time[1]
+    microsec = header.microsec
+    return convert_to_datetime(year, yd, minute, millisec, microsec)
+
+
+def read_data(query: CatalogueQuery) -> DataStream:
+    # TODO: Write function that takes a cataloguq query and returns a DataStream object
+    """Loads data from file."""
+
+    # 1. Load catalogue:
+    catalogue = load_catalogue(query.catalogue)
+
+    # 2. Load data from files:
+    print(catalogue.filenames)
+    pass
+
+
 def read_headers(
     filename: Path, file_format: str = None
 ) -> tuple[list[Header], FileFormat]:
@@ -197,3 +227,26 @@ def read_headers(
         suffix=filename.suffix, file_format=file_format
     )
     return reader(filename), file_format
+
+
+def load_catalogue(filepath: Path) -> Catalogue:
+    with open(filepath, "r") as f:
+        mdict = json.load(f)
+
+    file_format = validate_file_format(file_format=list(mdict.keys()).pop()).value
+
+    return Catalogue(
+        file_format=file_format,
+        filenames=[Path(f) for f in mdict[file_format]["filenames"]],
+        timestamps=[
+            [np.datetime64(t) for t in l] for l in mdict[file_format]["timestamps"]
+        ],
+        timestamps_orig=[
+            [np.datetime64(t) for t in l] for l in mdict[file_format]["timestamps_orig"]
+        ],
+        sampling_rate_orig=mdict[file_format]["sampling_rate_orig"],
+        sampling_rate=mdict[file_format]["sampling_rate"],
+        fixed_gain=mdict[file_format]["fixed_gain"],
+        hydrophone_sensitivity=mdict[file_format]["hydrophone_sensitivity"],
+        hydrophone_SN=mdict[file_format]["hydrophone_SN"],
+    )
