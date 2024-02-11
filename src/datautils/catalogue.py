@@ -18,6 +18,8 @@ from datautils.formats.sio import read_sio_headers
 from datautils.formats.wav import read_wav_headers
 from datautils.query import FileInfoQuery
 from datautils.time import (
+    TIME_PRECISION,
+    TIME_CONVERSION_FACTOR,
     convert_timestamp_to_yyd,
     convert_to_datetime,
     correct_clock_drift,
@@ -57,7 +59,7 @@ class FileCallbackHandler:
         if len(records) == 1:
             return records
         offset_for_first_record = np.timedelta64(
-            int(1e6 * records[0].npts / records[0].sampling_rate_orig), "us"
+            int(TIME_CONVERSION_FACTOR * records[0].npts / records[0].sampling_rate_orig), TIME_PRECISION
         )
         records[0].timestamp = records[1].timestamp - offset_for_first_record
         records[0].timestamp_orig = records[1].timestamp_orig - offset_for_first_record
@@ -262,8 +264,8 @@ class RecordCatalogue:
             return [dtype(i) for i in s.split(",") if i]
 
         self.df = pl.read_csv(filepath).with_columns(
-            pl.col("timestamp").cast(pl.Datetime("us")),
-            pl.col("timestamp_orig").cast(pl.Datetime("us")),
+            pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)),
+            pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)),
             pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float)),
             pl.col("hydrophone_sensitivity").map_elements(
                 partial(_str_to_list, dtype=float)
@@ -424,8 +426,8 @@ class RecordCatalogue:
         """
         return (
             pl.DataFrame(self._records_to_dfdict())
-            .with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
-            .with_columns(pl.col("timestamp_orig").cast(pl.Datetime("us")))
+            .with_columns(pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)))
+            .with_columns(pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)))
         )
 
     def save(self, savepath: Path, fmt: Union[str, list[str]] = "csv"):
