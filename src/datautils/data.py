@@ -2,13 +2,20 @@
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
+import polars as pl
 
-from datautils.catalogue import RecordCatalogue, get_timestamp, read_headers
+from datautils.catalogue import RecordCatalogue
 from datautils.query import CatalogueQuery
+from datautils.formats.shru import read_24bit_data
+
+
+class NoDataError(Exception):
+    pass
 
 
 class NoDataWarning(Warning):
@@ -74,7 +81,6 @@ class DataStream:
     #             self.t = data.get("t", None)
     #     except AttributeError:
     #         self.waveform = data
-
 
     @property
     def num_channels(self) -> int:
@@ -142,48 +148,45 @@ class DataStream:
 
 
 def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
-    print("This will be the primary reading function.")
-    return
+    """Reads data from catalogue using the query parameters."""
+    df = select_records_by_time(catalogue.df, query.time_start, query.time_end)
+
+    if len(df) == 0:
+        raise NoDataError("No data found for the given query parameters.")
+    logging.info(f"Reading {len(df)} records.")
+
+    filenames = sorted(df.unique(subset=["filename"])["filename"].to_list())
+    fixed_gains = df.unique(subset=["filename"])["fixed_gain"].to_list()
+
+    for filename, fixed_gain in zip(filenames, fixed_gains):
+        records = df.filter(pl.col("filename") == filename)["record_number"].to_list()
+
+        data, header = read_24bit_data(
+            filename=filename,
+            records=records,
+            channels=query.channels,
+            fixed_gain=fixed_gain,
+        )
+        # TODO: Merge data and header into a single DataStream object
+        # TODO: Enable time vector construction
+        # TODO: Create reader factory to read different file formats
+
+    return data, header
 
 
-# def read_data_from_catalogue(query: CatalogueQuery) -> DataStream:
-#     # TODO: Write function that takes a catalogue query and returns a DataStream object
-#     """Loads data from file."""
-#     # 1. Load catalogue:
-#     catalogue = read_catalogue(query.catalogue)
-
-#     # 2. Filter files by time:
-#     selected_files = select_files_by_time(
-#         catalogue.filenames, query.time_start, query.time_end
-#     )
-#     print(catalogue.filenames)
-#     print(selected_files)
-
-#     # 3. Load data from files:
-#     # read(catalogue.filenames, query.time_start, query.time_end, query.channels)
-
-#     pass
-
-
-
-def select_files_by_time(
-    filenames: list[Path], time_start: np.datetime64, time_end: np.datetime64
-) -> list[Path]:
+def select_records_by_time(
+    df: pl.DataFrame, time_start: np.datetime64, time_end: np.datetime64
+) -> pl.DataFrame:
     """Select files by time."""
     if time_start > time_end:
         raise ValueError("time_start must be less than time_end.")
     if np.isnat(time_start) and np.isnat(time_end):
-        return filenames
+        return df
     if time_start is not None and np.isnat(time_end):
-        return [
-            f for f in filenames if get_timestamp(read_headers(f)[0][0]) >= time_start
-        ]
+        return df.filter(pl.col("timestamp") >= time_start)
     if np.isnat(time_start) and time_end is not None:
-        return [
-            f for f in filenames if get_timestamp(read_headers(f)[0][0]) <= time_end
-        ]
-    return [
-        f
-        for f in filenames
-        if time_start <= get_timestamp(read_headers(f)[0][0]) <= time_end
-    ]
+        print("no time_start but time_end")
+        return df.filter(pl.col("timestamp") <= time_end)
+    return df.filter(
+        (pl.col("timestamp") >= time_start) & (pl.col("timestamp") <= time_end)
+    )
