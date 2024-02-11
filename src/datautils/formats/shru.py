@@ -122,7 +122,7 @@ def read_24bit_data(
     filename: Path,
     records: Union[int, list[int]],
     channels: Union[int, list[int]],
-    fixed_gain: Union[int, list[int]] = 20.0,
+    fixed_gain: Union[float, list[float]] = 20.0,
     drhs: Optional[list[SHRUHeader]] = None,
 ) -> tuple[np.ndarray, SHRUHeader]:
 
