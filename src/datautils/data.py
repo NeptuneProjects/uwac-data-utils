@@ -7,7 +7,7 @@ from typing import Optional, Union
 
 import numpy as np
 
-from datautils.catalogue import RecordCatalogue
+from datautils.catalogue import RecordCatalogue, get_timestamp, read_headers
 from datautils.query import CatalogueQuery
 
 
@@ -141,7 +141,7 @@ class DataStream:
 #         ...
 
 
-def read():
+def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
     print("This will be the primary reading function.")
     return
 
@@ -166,24 +166,24 @@ def read():
 
 
 
-# def select_files_by_time(
-#     filenames: list[Path], time_start: np.datetime64, time_end: np.datetime64
-# ) -> list[Path]:
-#     """Select files by time."""
-#     if time_start > time_end:
-#         raise ValueError("time_start must be less than time_end.")
-#     if np.isnat(time_start) and np.isnat(time_end):
-#         return filenames
-#     if time_start is not None and np.isnat(time_end):
-#         return [
-#             f for f in filenames if get_timestamp(read_headers(f)[0][0]) >= time_start
-#         ]
-#     if np.isnat(time_start) and time_end is not None:
-#         return [
-#             f for f in filenames if get_timestamp(read_headers(f)[0][0]) <= time_end
-#         ]
-#     return [
-#         f
-#         for f in filenames
-#         if time_start <= get_timestamp(read_headers(f)[0][0]) <= time_end
-#     ]
+def select_files_by_time(
+    filenames: list[Path], time_start: np.datetime64, time_end: np.datetime64
+) -> list[Path]:
+    """Select files by time."""
+    if time_start > time_end:
+        raise ValueError("time_start must be less than time_end.")
+    if np.isnat(time_start) and np.isnat(time_end):
+        return filenames
+    if time_start is not None and np.isnat(time_end):
+        return [
+            f for f in filenames if get_timestamp(read_headers(f)[0][0]) >= time_start
+        ]
+    if np.isnat(time_start) and time_end is not None:
+        return [
+            f for f in filenames if get_timestamp(read_headers(f)[0][0]) <= time_end
+        ]
+    return [
+        f
+        for f in filenames
+        if time_start <= get_timestamp(read_headers(f)[0][0]) <= time_end
+    ]

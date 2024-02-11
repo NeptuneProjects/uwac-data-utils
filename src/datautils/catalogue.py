@@ -169,13 +169,13 @@ class RecordCatalogue:
 
         records = []
         for f in files:
-            headers, file_format = self._read_headers(
+            headers, file_format = read_headers(
                 f, file_format=query.data.file_format
             )
             records_from_file = []
             callback = FileCallbackHandler(file_format)
             for i, header in enumerate(headers):
-                ts_orig = self._get_timestamp(header)
+                ts_orig = get_timestamp(header)
                 ts = correct_clock_drift(ts_orig, query.clock)
                 records_from_file.append(
                     Record(
@@ -185,10 +185,10 @@ class RecordCatalogue:
                         npts=header.npts,
                         timestamp=ts,
                         timestamp_orig=ts_orig,
-                        sampling_rate_orig=self._get_sampling_rate(
+                        sampling_rate_orig=get_sampling_rate(
                             file_format, headers
                         ),
-                        sampling_rate=self._get_sampling_rate(file_format, headers)
+                        sampling_rate=get_sampling_rate(file_format, headers)
                         / (1 + query.clock.drift_rate / 24 / 3600),
                         fixed_gain=query.hydrophones.fixed_gain,
                         hydrophone_sensitivity=query.hydrophones.sensitivity,
@@ -211,6 +211,7 @@ class RecordCatalogue:
         Returns:
             pl.DataFrame: Polars DataFrame.
         """
+
         def _to_list(lst: list):
             return ",".join([str(i) for i in lst])
 
@@ -219,66 +220,6 @@ class RecordCatalogue:
             pl.col("hydrophone_sensitivity").map_elements(_to_list),
             pl.col("hydrophone_SN").map_elements(_to_list),
         )
-
-    @staticmethod
-    def _get_headers_reader(
-        suffix: Optional[str] = None, file_format: Optional[str] = None
-    ) -> tuple[callable, FileFormat]:
-        """Factory to get header reader for file format.
-
-        Args:
-            suffix (Optional[str], optional): File suffix. Defaults to None.
-            file_format (Optional[str], optional): File format. Defaults to None.
-
-        Returns:
-            tuple[callable, FileFormat]: Header reader and file format.
-
-        Raises:
-            ValueError: If file format is not recognized.
-        """
-        file_format = validate_file_format(suffix, file_format)
-        if file_format == FileFormat.SHRU:
-            return read_shru_headers, file_format
-        if file_format == FileFormat.SIO:
-            return read_sio_headers, file_format
-        if file_format == FileFormat.WAV:
-            return read_wav_headers, file_format
-        raise ValueError(f"File format {file_format} is not recognized.")
-
-    @staticmethod
-    def _get_sampling_rate(file_format: FileFormat, headers: list[Header]) -> float:
-        """Get sampling rate from headers.
-
-        Args:
-            file_format (FileFormat): File format.
-            headers (list[Header]): List of headers.
-
-        Returns:
-            float: Sampling rate.
-        """
-        if file_format == FileFormat.SHRU:
-            return headers[0].rhfs
-        if file_format == FileFormat.SIO:
-            return headers[0].rhfs
-        if file_format == FileFormat.WAV:
-            return headers[0].framerate
-
-    @staticmethod
-    def _get_timestamp(header: Header) -> np.datetime64:
-        """Return the timestamp of a data record header.
-
-        Args:
-            header (Header): Data record header.
-
-        Returns:
-            np.datetime64: Timestamp.
-        """
-        year = header.date[0]
-        yd = header.date[1]
-        minute = header.time[0]
-        millisec = header.time[1]
-        microsec = header.microsec
-        return convert_to_datetime(year, yd, minute, millisec, microsec)
 
     def load(self, filepath: Path) -> RecordCatalogue:
         """Load the record catalogue from file.
@@ -314,6 +255,7 @@ class RecordCatalogue:
         Returns:
             None
         """
+
         def _str_to_list(s: str, dtype=float) -> list:
             if s == "nan":
                 return []
@@ -331,7 +273,7 @@ class RecordCatalogue:
 
     def _read_json(self, filepath: Path) -> None:
         """Read the record catalogue from JSON file.
-        
+
         Args:
             filepath (Path): Path to the catalogue file.
 
@@ -400,26 +342,6 @@ class RecordCatalogue:
 
         return records
 
-    def _read_headers(
-        self, filename: Path, file_format: str = None
-    ) -> tuple[list[Header], FileFormat]:
-        """Read headers from file.
-
-        Args:
-            filename (Path): File name.
-            file_format (str, optional): File format. Defaults to None.
-
-        Returns:
-            tuple[list[Header], FileFormat]: List of headers and file format.
-
-        Raises:
-            ValueError: If file format is not recognized.
-        """
-        reader, file_format = self._get_headers_reader(
-            suffix=filename.suffix, file_format=file_format
-        )
-        return reader(filename), file_format
-
     def _records_to_dfdict(self) -> dict:
         """Convert records to dictionary.
 
@@ -484,8 +406,8 @@ class RecordCatalogue:
         return {
             self.records[0].file_format.name: {
                 "filenames": filenames,
-                "timestamps": self._to_ydarray(timestamps),
-                "timestamps_orig": self._to_ydarray(timestamps_orig),
+                "timestamps": to_ydarray(timestamps),
+                "timestamps_orig": to_ydarray(timestamps_orig),
                 "rhfs_orig": self.records[0].sampling_rate_orig,
                 "rhfs": self.records[0].sampling_rate,
                 "fixed_gain": self.records[0].fixed_gain,
@@ -529,33 +451,6 @@ class RecordCatalogue:
             self.write_json(savepath.parent / (savepath.stem + ".json"))
         if RecordCatalogueFileFormat.MAT.name.lower() in fmt:
             self.write_mat(savepath.parent / (savepath.stem + ".mat"))
-
-    @staticmethod
-    def _to_ydarray(list_of_datetimes: list[list[np.datetime64]]) -> np.ndarray:
-        """Convert list of datetimes to 3D array.
-
-        This function is required to convert to the .MAT 'FileInfo' structure.
-
-        Args:
-            list_of_datetimes (list[list[np.datetime64]]): List of datetimes.
-
-        Returns:
-            np.ndarray: 3D array of datetimes with dimensions (2 x M x N),
-            where the first axis elements are the year and year-day, M is
-            the number of records in each file, and N is the number of files.
-        """
-        L = 2
-        M = max(len(dt) for dt in list_of_datetimes)
-        N = len(list_of_datetimes)
-        arr = np.zeros((L, M, N), dtype=np.float64)
-
-        for i, dt in enumerate(list_of_datetimes):
-            for j, d in enumerate(dt):
-                year, yd_decimal = convert_timestamp_to_yyd(d)
-                arr[0, j, i] = year
-                arr[1, j, i] = yd_decimal
-
-        return arr
 
     def write_csv(self, savepath: Path):
         """Write the catalogue to CSV file.
@@ -625,3 +520,111 @@ def build_and_save_catalogues(
         cat.save(savepath=Path(q.data.destination) / f"{q.serial}_FileInfo", fmt=fmt)
         for q, cat in zip(queries, build_catalogues(queries))
     ]
+
+
+def get_headers_reader(
+    suffix: Optional[str] = None, file_format: Optional[str] = None
+) -> tuple[callable, FileFormat]:
+    """Factory to get header reader for file format.
+
+    Args:
+        suffix (Optional[str], optional): File suffix. Defaults to None.
+        file_format (Optional[str], optional): File format. Defaults to None.
+
+    Returns:
+        tuple[callable, FileFormat]: Header reader and file format.
+
+    Raises:
+        ValueError: If file format is not recognized.
+    """
+    file_format = validate_file_format(suffix, file_format)
+    if file_format == FileFormat.SHRU:
+        return read_shru_headers, file_format
+    if file_format == FileFormat.SIO:
+        return read_sio_headers, file_format
+    if file_format == FileFormat.WAV:
+        return read_wav_headers, file_format
+    raise ValueError(f"File format {file_format} is not recognized.")
+
+
+def get_sampling_rate(file_format: FileFormat, headers: list[Header]) -> float:
+    """Get sampling rate from headers.
+
+    Args:
+        file_format (FileFormat): File format.
+        headers (list[Header]): List of headers.
+
+    Returns:
+        float: Sampling rate.
+    """
+    if file_format == FileFormat.SHRU:
+        return headers[0].rhfs
+    if file_format == FileFormat.SIO:
+        return headers[0].rhfs
+    if file_format == FileFormat.WAV:
+        return headers[0].framerate
+
+
+def get_timestamp(header: Header) -> np.datetime64:
+    """Return the timestamp of a data record header.
+
+    Args:
+        header (Header): Data record header.
+
+    Returns:
+        np.datetime64: Timestamp.
+    """
+    year = header.date[0]
+    yd = header.date[1]
+    minute = header.time[0]
+    millisec = header.time[1]
+    microsec = header.microsec
+    return convert_to_datetime(year, yd, minute, millisec, microsec)
+
+
+def read_headers(
+    filename: Path, file_format: str = None
+) -> tuple[list[Header], FileFormat]:
+    """Read headers from file.
+
+    Args:
+        filename (Path): File name.
+        file_format (str, optional): File format. Defaults to None.
+
+    Returns:
+        tuple[list[Header], FileFormat]: List of headers and file format.
+
+    Raises:
+        ValueError: If file format is not recognized.
+    """
+    reader, file_format = get_headers_reader(
+        suffix=filename.suffix, file_format=file_format
+    )
+    return reader(filename), file_format
+
+
+def to_ydarray(list_of_datetimes: list[list[np.datetime64]]) -> np.ndarray:
+    """Convert list of datetimes to 3D array.
+
+    This function is required to convert to the .MAT 'FileInfo' structure.
+
+    Args:
+        list_of_datetimes (list[list[np.datetime64]]): List of datetimes.
+
+    Returns:
+        np.ndarray: 3D array of datetimes with dimensions (2 x M x N),
+        where the first axis elements are the year and year-day, M is
+        the number of records in each file, and N is the number of files.
+    """
+    L = 2
+    M = max(len(dt) for dt in list_of_datetimes)
+    N = len(list_of_datetimes)
+    arr = np.zeros((L, M, N), dtype=np.float64)
+
+    for i, dt in enumerate(list_of_datetimes):
+        for j, d in enumerate(dt):
+            year, yd_decimal = convert_timestamp_to_yyd(d)
+            arr[0, j, i] = year
+            arr[1, j, i] = yd_decimal
+
+    return arr
