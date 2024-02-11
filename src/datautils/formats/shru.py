@@ -14,6 +14,7 @@ ADC_HALFSCALE = 2.5  # ADC half scale volts (+/- half scale is ADC i/p range)
 ADC_MAXVALUE = 2**23  # ADC maximum halfscale o/p value, half the 2's complement range
 BYTES_HDR = 1024
 BYTES_PER_SAMPLE = 3
+# TODO: Add voltage to pressure conversion
 
 
 @dataclass(frozen=True)
