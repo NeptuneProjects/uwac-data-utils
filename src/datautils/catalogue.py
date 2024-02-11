@@ -421,18 +421,16 @@ class RecordCatalogue:
     def _to_ydarray(list_of_datetimes: list[list[np.datetime64]]) -> np.ndarray:
         """Convert list of datetimes to 3D array.
 
-        This function is required to convert to .MAT structure.
+        This function is required to convert to the .MAT 'FileInfo' structure.
 
         Args:
             list_of_datetimes (list[list[np.datetime64]]): List of datetimes.
 
         Returns:
-            np.ndarray: 3D array of datetimes.
+            np.ndarray: 3D array of datetimes with dimensions (2 x M x N),
+            where the first axis elements are the year and year-day, M is
+            the number of records in each file, and N is the number of files.
         """
-        # 2 x M x N
-        # L = number of datetime elements
-        # M = number of records
-        # N = number of files
         L = 2
         M = max(len(dt) for dt in list_of_datetimes)
         N = len(list_of_datetimes)
