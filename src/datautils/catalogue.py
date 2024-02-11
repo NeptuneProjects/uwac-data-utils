@@ -59,7 +59,10 @@ class FileCallbackHandler:
         if len(records) == 1:
             return records
         offset_for_first_record = np.timedelta64(
-            int(TIME_CONVERSION_FACTOR * records[0].npts / records[0].sampling_rate_orig), TIME_PRECISION
+            int(
+                TIME_CONVERSION_FACTOR * records[0].npts / records[0].sampling_rate_orig
+            ),
+            TIME_PRECISION,
         )
         records[0].timestamp = records[1].timestamp - offset_for_first_record
         records[0].timestamp_orig = records[1].timestamp_orig - offset_for_first_record
@@ -171,9 +174,7 @@ class RecordCatalogue:
 
         records = []
         for f in files:
-            headers, file_format = read_headers(
-                f, file_format=query.data.file_format
-            )
+            headers, file_format = read_headers(f, file_format=query.data.file_format)
             records_from_file = []
             callback = FileCallbackHandler(file_format)
             for i, header in enumerate(headers):
@@ -187,9 +188,7 @@ class RecordCatalogue:
                         npts=header.npts,
                         timestamp=ts,
                         timestamp_orig=ts_orig,
-                        sampling_rate_orig=get_sampling_rate(
-                            file_format, headers
-                        ),
+                        sampling_rate_orig=get_sampling_rate(file_format, headers),
                         sampling_rate=get_sampling_rate(file_format, headers)
                         / (1 + query.clock.drift_rate / 24 / 3600),
                         fixed_gain=query.hydrophones.fixed_gain,

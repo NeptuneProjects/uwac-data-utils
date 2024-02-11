@@ -146,7 +146,9 @@ def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
     fixed_gains = df.unique(subset=["filename"])["fixed_gain"].to_list()
     sampling_rates = df.unique(subset=["filename"])["sampling_rate"].to_list()
 
-    for filename, fixed_gain, sampling_rate in zip(filenames, fixed_gains, sampling_rates):
+    for filename, fixed_gain, sampling_rate in zip(
+        filenames, fixed_gains, sampling_rates
+    ):
         records = df.filter(pl.col("filename") == filename)["record_number"].to_list()
 
         data, header = read_24bit_data(
@@ -163,8 +165,6 @@ def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
             sampling_rate=sampling_rate,
         )
         print(ds.time_init, ds.time_end, ds.sampling_rate)
-
-        
 
         # TODO: Merge data and header into a single DataStream object
         # TODO: Enable time vector construction
