@@ -28,12 +28,16 @@ MAT_KEYS = ["__header__", "__version__", "__globals__"]
 
 
 class RecordCatalogueFileFormat(Enum):
+    """File formats for record catalogues."""
+
     CSV = "csv"
     JSON = "json"
     MAT = "mat"
 
 
 class FileCallbackHandler:
+    """Callback handler for file-format--specific functions."""
+
     def __init__(self, file_format: FileFormat):
         self.file_format = file_format
 
@@ -44,6 +48,20 @@ class FileCallbackHandler:
 
     @staticmethod
     def format_shru_records(records: list[Record]) -> list[Record]:
+        """Format SHRU records.
+
+        The time stamp of the first record in the 4-channel SHRU files seem
+        to be rounded to seconds. This function corrects the time stamp of
+        the first record by calculating the time offset between the first
+        and second records using the number of points in the record and
+        the sampling rate.
+
+        Args:
+            records (list[Record]): List of records.
+
+        Returns:
+            list[Record]: List of records.
+        """
         # Calculate the time offset between the first and second records
         if len(records) == 1:
             return records
@@ -56,18 +74,60 @@ class FileCallbackHandler:
 
     @staticmethod
     def format_sio_records(records: list[Record]) -> list[Record]:
+        """Format SIO records.
+
+        Nothing implemented.
+
+        Args:
+            records (list[Record]): List of records.
+
+        Returns:
+            list[Record]: List of records.
+        """
         return records
 
     @staticmethod
     def format_wav_records(records: list[Record]) -> list[Record]:
+        """Format WAV records.
+
+        Nothing implemented.
+
+        Args:
+            records (list[Record]): List of records.
+
+        Returns:
+            list[Record]: List of records.
+        """
         return records
 
 
-class Header(Protocol): ...
+class Header(Protocol):
+    """Protocol for file-format--specific header objects."""
+
+    ...
 
 
 @dataclass
 class Record:
+    """Data record object.
+
+    Args:
+        filename (Path): File name.
+        record_number (int): Record number.
+        file_format (FileFormat): File format.
+        timestamp (Union[np.datetime64, pl.Datetime]): Timestamp.
+        timestamp_orig (Union[np.datetime64, pl.Datetime]): Original timestamp.
+        sampling_rate (float): Sampling rate.
+        sampling_rate_orig (float): Original sampling rate.
+        fixed_gain (float): Fixed gain.
+        hydrophone_sensitivity (float): Hydrophone sensitivity.
+        hydrophone_SN (int): Hydrophone serial number.
+        npts (Optional[int], optional): Number of points in the record. Defaults to None.
+
+    Returns:
+        Record: Data record object.
+    """
+
     filename: Path
     record_number: int
     file_format: FileFormat
@@ -322,7 +382,11 @@ class RecordCatalogue:
         }
 
     def _records_to_polars_df(self) -> pl.DataFrame:
-        print(self.records[0])
+        """Convert records to Polars DataFrame.
+
+        Returns:
+            pl.DataFrame: Polars DataFrame.
+        """
         return (
             pl.DataFrame(self._records_to_dfdict())
             .with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
@@ -330,6 +394,15 @@ class RecordCatalogue:
         )
 
     def save(self, savepath: Path, fmt: Union[str, list[str]] = "csv"):
+        """Save the catalogue to file.
+
+        Args:
+            savepath (Path): Path to save the catalogue file.
+            fmt (Union[str, list[str]], optional): File format(s) to save the catalogue. Defaults to "csv".
+
+        Raises:
+            ValueError: If file format is not recognized.
+        """
         if isinstance(fmt, str):
             fmt = [fmt]
         if not all(f in RecordCatalogueFileFormat for f in fmt):
@@ -346,6 +419,16 @@ class RecordCatalogue:
 
     @staticmethod
     def _to_ydarray(list_of_datetimes: list[list[np.datetime64]]) -> np.ndarray:
+        """Convert list of datetimes to 3D array.
+
+        This function is required to convert to .MAT structure.
+
+        Args:
+            list_of_datetimes (list[list[np.datetime64]]): List of datetimes.
+
+        Returns:
+            np.ndarray: 3D array of datetimes.
+        """
         # 2 x M x N
         # L = number of datetime elements
         # M = number of records
@@ -364,24 +447,65 @@ class RecordCatalogue:
         return arr
 
     def write_csv(self, savepath: Path):
+        """Write the catalogue to CSV file.
+
+        Args:
+            savepath (Path): Path to save the catalogue file.
+
+        Returns:
+            None
+        """
         df_out = self._format_df_for_csv(self.df)
         df_out.write_csv(savepath)
 
     def write_json(self, savepath: Path):
+        """Write the catalogue to JSON file.
+
+        Args:
+            savepath (Path): Path to save the catalogue file.
+
+        Returns:
+            None
+        """
         self.df.write_json(savepath, pretty=True)
 
     def write_mat(self, savepath: Path):
+        """Write the catalogue to MAT file.
+
+        Args:
+            savepath (Path): Path to save the catalogue file.
+
+        Returns:
+            None
+        """
         mdict = self._records_to_mdict()
         scipy.io.savemat(savepath, mdict)
 
 
 def build_catalogues(queries: list[FileInfoQuery]) -> list[RecordCatalogue]:
+    """Build catalogues from file info queries.
+
+    Args:
+        queries (list[FileInfoQuery]): List of file info queries.
+
+    Returns:
+        list[RecordCatalogue]: List of record catalogues.
+    """
     return [RecordCatalogue().build(q) for q in queries]
 
 
 def build_and_save_catalogues(
     queries: list[FileInfoQuery], fmt: Union[str, list[str]] = "csv"
 ) -> None:
+    """Build and save catalogues from file info queries.
+
+    Args:
+        queries (list[FileInfoQuery]): List of file info queries.
+        fmt (Union[str, list[str]], optional): File format(s) to save the catalogue. Defaults to "csv".
+
+    Raises:
+        ValueError: If file format is not recognized.
+    """
     if isinstance(fmt, str):
         fmt = [fmt]
     if not all(f in RecordCatalogueFileFormat for f in fmt):
