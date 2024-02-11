@@ -50,7 +50,7 @@ class DataStream:
     def __post_init__(self):
         """Initializes data and time vector."""
         # Set time_init to 0 if not provided
-        if self.time_init is None:
+        if np.isnat(self.time_init):
             self.time_init = np.timedelta64(0, "us")
 
         # Compute sampling rate if time_init and time_end are provided
@@ -64,7 +64,7 @@ class DataStream:
         # Set time_end if time_init and sampling rate are provided
         if (
             self.time_init is not None
-            and self.time_end is None
+            and np.isnat(self.time_end)
             and self.sampling_rate is not None
         ):
             self.time_end = self.time_init + np.timedelta64(
@@ -133,22 +133,9 @@ class DataStream:
     #     return DataStream(X=self.X[index], t=self.t[index])
 
 
-# class DataHandler(Protocol):
-#     def convert(self) -> Any:
-#         """Converts data to specified formats."""
-#         ...
-
-#     def load_merged(self) -> Any:
-#         """Loads merged numpy file."""
-#         ...
-
-#     def merge_numpy_files(self) -> Any:
-#         """Merges numpy files."""
-#         ...
-
-
 def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
     """Reads data from catalogue using the query parameters."""
+    print(query.time_start, query.time_end)
     df = select_records_by_time(catalogue.df, query.time_start, query.time_end)
 
     if len(df) == 0:
@@ -157,8 +144,9 @@ def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
 
     filenames = sorted(df.unique(subset=["filename"])["filename"].to_list())
     fixed_gains = df.unique(subset=["filename"])["fixed_gain"].to_list()
+    sampling_rates = df.unique(subset=["filename"])["sampling_rate"].to_list()
 
-    for filename, fixed_gain in zip(filenames, fixed_gains):
+    for filename, fixed_gain, sampling_rate in zip(filenames, fixed_gains, sampling_rates):
         records = df.filter(pl.col("filename") == filename)["record_number"].to_list()
 
         data, header = read_24bit_data(
@@ -167,11 +155,22 @@ def read(catalogue: RecordCatalogue, query: CatalogueQuery) -> DataStream:
             channels=query.channels,
             fixed_gain=fixed_gain,
         )
+        ds = DataStream(
+            waveform=data,
+            channels=query.channels,
+            time_init=query.time_start,
+            time_end=query.time_end,
+            sampling_rate=sampling_rate,
+        )
+        print(ds.time_init, ds.time_end, ds.sampling_rate)
+
+        
+
         # TODO: Merge data and header into a single DataStream object
         # TODO: Enable time vector construction
         # TODO: Create reader factory to read different file formats
 
-    return data, header
+    return ds
 
 
 def select_records_by_time(
