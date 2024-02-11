@@ -26,13 +26,8 @@ class SIOReadWarning(Warning):
     pass
 
 
-def read_sio_headers():
-    ...
+def read_sio_headers(): ...
 
-
-def format_sio_headers():
-    ...
-    
 
 @dataclass
 class SIOHeader:
@@ -61,12 +56,12 @@ class SIOHeader:
             comment = Comment String
             bs = Endian check value, should be 32677
             """
-    
+
     @property
     def RpC(self) -> int:
         """Records per channel."""
         return ceil(self.Nr / self.Nc)
-    
+
     @property
     def SpR(self) -> int:
         """Samples per record."""
@@ -248,7 +243,6 @@ def load_sio_save_fmt(
         wavfile.write(savepath / (f.name + ".wav"), fs, data)
         log.info(f"{str(f)} saved to disk  in .wav format.")
 
-
     fmt = [fmt] if isinstance(fmt, str) else fmt
 
     data, header = sioread(f)
@@ -348,7 +342,7 @@ def sioread(
         bs = unpack(endian + "I", f.read(4))[0]  # should be 32677
         fname = unpack("24s", f.read(24))[0].decode()  # File name
         comment = unpack("72s", f.read(72))[0].decode()  # Comment String
-        
+
         # Header object, for output
         header = SIOHeader(
             ID=ID,
@@ -363,7 +357,7 @@ def sioread(
             comment=comment,
         )
 
-        SpR=header.SpR
+        SpR = header.SpR
 
         # If either channel or # of samples is 0, then return just header
         if (Ns == 0) or ((len(channels) == 1) and (channels[0] == -1)):

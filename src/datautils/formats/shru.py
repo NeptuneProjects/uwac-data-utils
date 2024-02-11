@@ -103,21 +103,6 @@ def convert_to_voltage(data: np.ndarray, fixed_gain: list[float]) -> np.ndarray:
     return data * norm_factor[np.newaxis, :]
 
 
-def format_shru_headers(
-    file_iter: int,
-    headers: list[SHRUHeader],
-    file_timestamps: list[np.datetime64],
-    file_timestamps_orig: list[np.datetime64],
-) -> tuple[list[SHRUHeader], list[np.datetime64], list[np.datetime64]]:
-    if file_iter == 0 and len(headers) > 1:
-        offset_for_first_record = np.timedelta64(
-            int(1e6 * headers[0].npts / headers[0].rhfs), "us"
-        )
-        file_timestamps[0] = file_timestamps[1] - offset_for_first_record
-        file_timestamps_orig[0] = file_timestamps_orig[1] - offset_for_first_record
-    return headers, file_timestamps, file_timestamps_orig
-
-
 def get_data_record(fid: BinaryIO, nch: int, spts: int) -> tuple[np.ndarray, int]:
     total_bytes = nch * spts * BYTES_PER_SAMPLE
     data_bytes = fid.read(total_bytes)
