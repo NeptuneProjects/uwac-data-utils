@@ -60,8 +60,29 @@ def correct_clock_drift(
 
 def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
     np_datetime64_us = np_datetime64.astype("datetime64[us]")
-    int64_us = np_datetime64_us.astype("int64")
-    return pl.Series(int64_us).cast(pl.Datetime("us"))
+    int64_us = np.int64(np_datetime64_us.view('int64'))
+    return pl.lit(int64_us).cast(pl.Datetime("us"))
+
+# def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
+#     np_datetime64_us = np_datetime64.astype("datetime64[us]")
+#     print(type(np_datetime64_us))
+#     int64_us = np_datetime64_us.astype("int64")
+#     print(type(int64_us))
+    
+#     # Ensure `values` is a list or an array
+#     sr = pl.Series(values=[int64_us], dtype=pl.Int64)
+    
+#     return sr.cast(pl.Datetime("us"))
+
+
+
+# def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
+#     np_datetime64_us = np_datetime64.astype("datetime64[us]")
+#     print(type(np_datetime64_us))
+#     int64_us = np_datetime64_us.astype("int64")
+#     print(type(int64_us))
+#     sr = pl.Series(values=int64_us, dtype=pl.Int64)
+#     return sr.cast(pl.Datetime("us"))
 
 def convert_pldatetime_to_datetime64(pl_datetime: pl.Series) -> list[np.datetime64]:
     int64_us = pl_datetime.cast(pl.Int64)
