@@ -19,6 +19,15 @@ class CatalogueQuery:
     time_end: Optional[Union[float, np.datetime64]] = None
     channels: Optional[Union[int, list[int]]] = None
 
+    def __repr__(self):
+        return (
+            f"CatalogueQuery(serial={self.serial}, "
+            f"destination={self.destination}, "
+            f"time_start={self.time_start}, "
+            f"time_end={self.time_end}, "
+            f"channels={self.channels})"
+        )
+
 
 @dataclass
 class DataSelection:
@@ -48,6 +57,7 @@ def load_catalogue_query(filename: Path) -> list[CatalogueQuery]:
                 params.get("destination"),
                 np.datetime64(params.get("time_start", None)),
                 np.datetime64(params.get("time_end", None)),
+                params.get("channels", None),
             )
         )
 
