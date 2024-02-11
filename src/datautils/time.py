@@ -5,6 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 import polars as pl
 
+TIME_PRECISION = "us"
+TIME_CONVERSION_FACTOR = 1e6
+
 
 @dataclass
 class ClockParameters:
@@ -22,9 +25,9 @@ class ClockParameters:
 
 
 def convert_timestamp_to_yyd(timestamp: np.datetime64) -> tuple[int, float]:
-    Y, us = [timestamp.astype(f"datetime64[{t}]") for t in ["Y", "us"]]
+    Y, rmndr = [timestamp.astype(f"datetime64[{t}]") for t in ["Y", TIME_PRECISION]]
     year = Y.astype(int) + 1970
-    yd = (us - np.datetime64(f"{year - 1}-12-31")) / np.timedelta64(1, "D")
+    yd = (rmndr - np.datetime64(f"{year - 1}-12-31")) / np.timedelta64(1, "D")
     return year, yd
 
 
@@ -32,8 +35,8 @@ def convert_yydfrac_to_timestamp(year: int, yd: float) -> np.datetime64:
     base_date = np.datetime64(f"{int(year)}-01-01")
     day = int(yd)
     fraction = yd - day
-    microseconds = int(fraction * 24 * 60 * 60 * 1e6)
-    return base_date + np.timedelta64(day, "D") + np.timedelta64(microseconds, "us")
+    rmndr = int(fraction * 24 * 60 * 60 * TIME_CONVERSION_FACTOR)
+    return base_date + np.timedelta64(day, "D") + np.timedelta64(rmndr, "us")
 
 
 def convert_to_datetime(
@@ -55,25 +58,27 @@ def correct_clock_drift(
     """Correct clock drift in a timestamp."""
     days_diff = (timestamp - clock.time_check_0) / np.timedelta64(1, "D")
     drift = clock.drift_rate * days_diff
-    return timestamp + np.timedelta64(int(1e6 * drift), "us")
+    return timestamp + np.timedelta64(
+        int(TIME_CONVERSION_FACTOR * drift), TIME_PRECISION
+    )
 
 
 def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
-    np_datetime64_us = np_datetime64.astype("datetime64[us]")
-    int64_us = np.int64(np_datetime64_us.view('int64'))
-    return pl.lit(int64_us).cast(pl.Datetime("us"))
+    np_datetime64_us = np_datetime64.astype(f"datetime64[{TIME_PRECISION}]")
+    int64_us = np.int64(np_datetime64_us.view("int64"))
+    return pl.lit(int64_us).cast(pl.Datetime(TIME_PRECISION))
+
 
 # def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
 #     np_datetime64_us = np_datetime64.astype("datetime64[us]")
 #     print(type(np_datetime64_us))
 #     int64_us = np_datetime64_us.astype("int64")
 #     print(type(int64_us))
-    
+
 #     # Ensure `values` is a list or an array
 #     sr = pl.Series(values=[int64_us], dtype=pl.Int64)
-    
-#     return sr.cast(pl.Datetime("us"))
 
+#     return sr.cast(pl.Datetime("us"))
 
 
 # def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
@@ -84,6 +89,7 @@ def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
 #     sr = pl.Series(values=int64_us, dtype=pl.Int64)
 #     return sr.cast(pl.Datetime("us"))
 
+
 def convert_pldatetime_to_datetime64(pl_datetime: pl.Series) -> list[np.datetime64]:
     int64_us = pl_datetime.cast(pl.Int64)
-    return np.datetime64(int64_us, "us")
+    return np.datetime64(int64_us, TIME_PRECISION)
