@@ -16,7 +16,7 @@ from datautils.formats.formats import FileFormat, validate_file_format
 from datautils.formats.shru import read_shru_headers
 from datautils.formats.sio import read_sio_headers
 from datautils.formats.wav import read_wav_headers
-from datautils.query import CatalogueQuery, FileInfoQuery
+from datautils.query import FileInfoQuery
 from datautils.time import (
     convert_timestamp_to_yyd,
     convert_to_datetime,
@@ -25,14 +25,6 @@ from datautils.time import (
 )
 
 MAT_KEYS = ["__header__", "__version__", "__globals__"]
-
-
-class RecordCatalogueFileFormat(Enum):
-    """File formats for record catalogues."""
-
-    CSV = "csv"
-    JSON = "json"
-    MAT = "mat"
 
 
 class FileCallbackHandler:
@@ -62,7 +54,6 @@ class FileCallbackHandler:
         Returns:
             list[Record]: List of records.
         """
-        # Calculate the time offset between the first and second records
         if len(records) == 1:
             return records
         offset_for_first_record = np.timedelta64(
@@ -105,6 +96,14 @@ class Header(Protocol):
     """Protocol for file-format--specific header objects."""
 
     ...
+
+
+class RecordCatalogueFileFormat(Enum):
+    """File formats for record catalogues."""
+
+    CSV = "csv"
+    JSON = "json"
+    MAT = "mat"
 
 
 @dataclass
@@ -151,6 +150,17 @@ class RecordCatalogue:
         return f"RecordCatalogue(records={self.records}, df={self.df})"
 
     def build(self, query: FileInfoQuery) -> RecordCatalogue:
+        """Build the record catalogue from file info query.
+
+        Args:
+            query (FileInfoQuery): File info query.
+
+        Returns:
+            RecordCatalogue: Record catalogue.
+
+        Raises:
+            FileNotFoundError: If no SHRU files are found in the directory.
+        """
         files = sorted(Path(query.data.directory).glob(query.data.glob_pattern))
 
         if len(files) == 0:
@@ -193,6 +203,14 @@ class RecordCatalogue:
         return self
 
     def _format_df_for_csv(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Format Polars DataFrame for CSV output.
+
+        Args:
+            df (pl.DataFrame): Polars DataFrame.
+
+        Returns:
+            pl.DataFrame: Polars DataFrame.
+        """
         def _to_list(lst: list):
             return ",".join([str(i) for i in lst])
 
@@ -206,7 +224,18 @@ class RecordCatalogue:
     def _get_headers_reader(
         suffix: Optional[str] = None, file_format: Optional[str] = None
     ) -> tuple[callable, FileFormat]:
-        """Factory to get header reader for file format."""
+        """Factory to get header reader for file format.
+
+        Args:
+            suffix (Optional[str], optional): File suffix. Defaults to None.
+            file_format (Optional[str], optional): File format. Defaults to None.
+
+        Returns:
+            tuple[callable, FileFormat]: Header reader and file format.
+
+        Raises:
+            ValueError: If file format is not recognized.
+        """
         file_format = validate_file_format(suffix, file_format)
         if file_format == FileFormat.SHRU:
             return read_shru_headers, file_format
@@ -218,7 +247,15 @@ class RecordCatalogue:
 
     @staticmethod
     def _get_sampling_rate(file_format: FileFormat, headers: list[Header]) -> float:
-        """Get sampling rate from headers."""
+        """Get sampling rate from headers.
+
+        Args:
+            file_format (FileFormat): File format.
+            headers (list[Header]): List of headers.
+
+        Returns:
+            float: Sampling rate.
+        """
         if file_format == FileFormat.SHRU:
             return headers[0].rhfs
         if file_format == FileFormat.SIO:
@@ -228,7 +265,14 @@ class RecordCatalogue:
 
     @staticmethod
     def _get_timestamp(header: Header) -> np.datetime64:
-        """Return the timestamp of a data record header."""
+        """Return the timestamp of a data record header.
+
+        Args:
+            header (Header): Data record header.
+
+        Returns:
+            np.datetime64: Timestamp.
+        """
         year = header.date[0]
         yd = header.date[1]
         minute = header.time[0]
@@ -237,6 +281,17 @@ class RecordCatalogue:
         return convert_to_datetime(year, yd, minute, millisec, microsec)
 
     def load(self, filepath: Path) -> RecordCatalogue:
+        """Load the record catalogue from file.
+
+        Args:
+            filepath (Path): Path to the catalogue file.
+
+        Returns:
+            RecordCatalogue: Record catalogue.
+
+        Raises:
+            ValueError: If file format is not recognized.
+        """
         extension = filepath.suffix[1:].lower()
 
         if extension not in RecordCatalogueFileFormat:
@@ -251,6 +306,14 @@ class RecordCatalogue:
         return self
 
     def _read_csv(self, filepath: Path) -> None:
+        """Read the record catalogue from CSV file.
+
+        Args:
+            filepath (Path): Path to the catalogue file.
+
+        Returns:
+            None
+        """
         def _str_to_list(s: str, dtype=float) -> list:
             if s == "nan":
                 return []
@@ -267,14 +330,38 @@ class RecordCatalogue:
         )
 
     def _read_json(self, filepath: Path) -> None:
+        """Read the record catalogue from JSON file.
+        
+        Args:
+            filepath (Path): Path to the catalogue file.
+
+        Returns:
+            None
+        """
         self.df = pl.read_json(filepath)
 
     def _read_mat(self, filepath: Path) -> None:
+        """Read the record catalogue from MAT file.
+
+        Args:
+            filepath (Path): Path to the catalogue file.
+
+        Returns:
+            None
+        """
         mdict = scipy.io.loadmat(filepath)
         self.records = self._mdict_to_records(mdict)
         self.df = self._records_to_polars_df()
 
     def _mdict_to_records(self, mdict: dict) -> list[Record]:
+        """Convert MAT file dictionary to records.
+
+        Args:
+            mdict (dict): MAT file dictionary.
+
+        Returns:
+            list[Record]: List of records.
+        """
         [mdict.pop(k, None) for k in MAT_KEYS]
         cat_name = list(mdict.keys()).pop()
         cat_data = mdict[cat_name]
@@ -316,12 +403,31 @@ class RecordCatalogue:
     def _read_headers(
         self, filename: Path, file_format: str = None
     ) -> tuple[list[Header], FileFormat]:
+        """Read headers from file.
+
+        Args:
+            filename (Path): File name.
+            file_format (str, optional): File format. Defaults to None.
+
+        Returns:
+            tuple[list[Header], FileFormat]: List of headers and file format.
+
+        Raises:
+            ValueError: If file format is not recognized.
+        """
         reader, file_format = self._get_headers_reader(
             suffix=filename.suffix, file_format=file_format
         )
         return reader(filename), file_format
 
     def _records_to_dfdict(self) -> dict:
+        """Convert records to dictionary.
+
+        The dictionary is used to construct the object's DataFrame.
+
+        Returns:
+            dict: Dictionary of records.
+        """
         return {
             "filename": [str(record.filename) for record in self.records],
             "record_number": [record.record_number for record in self.records],
@@ -343,6 +449,13 @@ class RecordCatalogue:
         }
 
     def _records_to_mdict(self) -> dict:
+        """Convert records to dictionary.
+
+        The dictionary is used to construct the .MAT file.
+
+        Returns:
+            dict: Dictionary of records.
+        """
         filenames = list(set([str(record.filename) for record in self.records]))
         timestamps = []
         timestamps_orig = []
@@ -512,68 +625,3 @@ def build_and_save_catalogues(
         cat.save(savepath=Path(q.data.destination) / f"{q.serial}_FileInfo", fmt=fmt)
         for q, cat in zip(queries, build_catalogues(queries))
     ]
-
-
-# def read_data_from_catalogue(query: CatalogueQuery) -> DataStream:
-#     # TODO: Write function that takes a catalogue query and returns a DataStream object
-#     """Loads data from file."""
-#     # 1. Load catalogue:
-#     catalogue = read_catalogue(query.catalogue)
-
-#     # 2. Filter files by time:
-#     selected_files = select_files_by_time(
-#         catalogue.filenames, query.time_start, query.time_end
-#     )
-#     print(catalogue.filenames)
-#     print(selected_files)
-
-#     # 3. Load data from files:
-#     # read(catalogue.filenames, query.time_start, query.time_end, query.channels)
-
-#     pass
-
-
-# def select_files_by_time(
-#     filenames: list[Path], time_start: np.datetime64, time_end: np.datetime64
-# ) -> list[Path]:
-#     """Select files by time."""
-#     if time_start > time_end:
-#         raise ValueError("time_start must be less than time_end.")
-#     if np.isnat(time_start) and np.isnat(time_end):
-#         return filenames
-#     if time_start is not None and np.isnat(time_end):
-#         return [
-#             f for f in filenames if get_timestamp(read_headers(f)[0][0]) >= time_start
-#         ]
-#     if np.isnat(time_start) and time_end is not None:
-#         return [
-#             f for f in filenames if get_timestamp(read_headers(f)[0][0]) <= time_end
-#         ]
-#     return [
-#         f
-#         for f in filenames
-#         if time_start <= get_timestamp(read_headers(f)[0][0]) <= time_end
-#     ]
-
-
-# def read_catalogue(filepath: Path) -> Catalogue:
-#     with open(filepath, "r") as f:
-#         mdict = json.load(f)
-
-#     file_format = validate_file_format(file_format=list(mdict.keys()).pop()).value
-
-#     return Catalogue(
-#         file_format=file_format,
-#         filenames=[Path(f) for f in mdict[file_format]["filenames"]],
-#         timestamps=[
-#             [np.datetime64(t) for t in l] for l in mdict[file_format]["timestamps"]
-#         ],
-#         timestamps_orig=[
-#             [np.datetime64(t) for t in l] for l in mdict[file_format]["timestamps_orig"]
-#         ],
-#         sampling_rate_orig=mdict[file_format]["sampling_rate_orig"],
-#         sampling_rate=mdict[file_format]["sampling_rate"],
-#         fixed_gain=mdict[file_format]["fixed_gain"],
-#         hydrophone_sensitivity=mdict[file_format]["hydrophone_sensitivity"],
-#         hydrophone_SN=mdict[file_format]["hydrophone_SN"],
-#     )
