@@ -14,7 +14,6 @@ from datautils.time import ClockParameters
 @dataclass
 class CatalogueQuery:
     serial: str
-    catalogue: str
     destination: str = "."
     time_start: Optional[Union[float, np.datetime64]] = None
     time_end: Optional[Union[float, np.datetime64]] = None
@@ -46,7 +45,6 @@ def load_catalogue_query(filename: Path) -> list[CatalogueQuery]:
         queries.append(
             CatalogueQuery(
                 serial,
-                params.get("catalogue"),
                 params.get("destination"),
                 np.datetime64(params.get("time_start", None)),
                 np.datetime64(params.get("time_end", None)),

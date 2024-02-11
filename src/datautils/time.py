@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import polars as pl
 
 
 @dataclass
@@ -27,6 +28,14 @@ def convert_timestamp_to_yyd(timestamp: np.datetime64) -> tuple[int, float]:
     return year, yd
 
 
+def convert_yydfrac_to_timestamp(year: int, yd: float) -> np.datetime64:
+    base_date = np.datetime64(f"{int(year)}-01-01")
+    day = int(yd)
+    fraction = yd - day
+    microseconds = int(fraction * 24 * 60 * 60 * 1e6)
+    return base_date + np.timedelta64(day, "D") + np.timedelta64(microseconds, "us")
+
+
 def convert_to_datetime(
     year: int, yd: int, minute: int, millisec: int, microsec: int
 ) -> np.datetime64:
@@ -47,3 +56,13 @@ def correct_clock_drift(
     days_diff = (timestamp - clock.time_check_0) / np.timedelta64(1, "D")
     drift = clock.drift_rate * days_diff
     return timestamp + np.timedelta64(int(1e6 * drift), "us")
+
+
+def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
+    np_datetime64_us = np_datetime64.astype("datetime64[us]")
+    int64_us = np_datetime64_us.astype("int64")
+    return pl.Series(int64_us).cast(pl.Datetime("us"))
+
+def convert_pldatetime_to_datetime64(pl_datetime: pl.Series) -> list[np.datetime64]:
+    int64_us = pl_datetime.cast(pl.Int64)
+    return np.datetime64(int64_us, "us")

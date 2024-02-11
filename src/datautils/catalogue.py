@@ -3,6 +3,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 import logging
 from pathlib import Path
 from typing import Optional, Protocol, Union
@@ -11,7 +12,6 @@ import numpy as np
 import polars as pl
 import scipy
 
-from datautils.data import DataStream, read
 from datautils.formats.formats import FileFormat, validate_file_format
 from datautils.formats.shru import read_shru_headers
 from datautils.formats.sio import read_sio_headers
@@ -21,10 +21,13 @@ from datautils.time import (
     convert_timestamp_to_yyd,
     convert_to_datetime,
     correct_clock_drift,
+    convert_yydfrac_to_timestamp,
 )
 
+MAT_KEYS = ["__header__", "__version__", "__globals__"]
 
-class CatalogueFileFormat(Enum):
+
+class RecordCatalogueFileFormat(Enum):
     CSV = "csv"
     JSON = "json"
     MAT = "mat"
@@ -68,14 +71,14 @@ class Record:
     filename: Path
     record_number: int
     file_format: FileFormat
-    npts: int
-    timestamp: np.datetime64
-    timestamp_orig: np.datetime64
+    timestamp: Union[np.datetime64, pl.Datetime]
+    timestamp_orig: Union[np.datetime64, pl.Datetime]
     sampling_rate: float
     sampling_rate_orig: float
     fixed_gain: float
     hydrophone_sensitivity: float
-    hydrophone_SN: str
+    hydrophone_SN: int
+    npts: Optional[int] = None
 
 
 class RecordCatalogue:
@@ -83,6 +86,9 @@ class RecordCatalogue:
         self.records = records
         if records is not None:
             self.df = self._records_to_polars_df()
+
+    def __repr__(self):
+        return f"RecordCatalogue(records={self.records}, df={self.df})"
 
     def build(self, query: FileInfoQuery) -> RecordCatalogue:
         files = sorted(Path(query.data.directory).glob(query.data.glob_pattern))
@@ -131,9 +137,9 @@ class RecordCatalogue:
             return ",".join([str(i) for i in lst])
 
         return df.with_columns(
-            pl.col("fixed_gain").apply(_to_list),
-            pl.col("hydrophone_sensitivity").apply(_to_list),
-            pl.col("hydrophone_SN").apply(_to_list),
+            pl.col("fixed_gain").map_elements(_to_list),
+            pl.col("hydrophone_sensitivity").map_elements(_to_list),
+            pl.col("hydrophone_SN").map_elements(_to_list),
         )
 
     @staticmethod
@@ -170,6 +176,83 @@ class RecordCatalogue:
         microsec = header.microsec
         return convert_to_datetime(year, yd, minute, millisec, microsec)
 
+    def load(self, filepath: Path) -> RecordCatalogue:
+        extension = filepath.suffix[1:].lower()
+
+        if extension not in RecordCatalogueFileFormat:
+            raise ValueError(f"File format '{extension}' is not recognized.")
+
+        if extension == RecordCatalogueFileFormat.CSV.value:
+            self._read_csv(filepath)
+        if extension == RecordCatalogueFileFormat.JSON.value:
+            self._read_json(filepath)
+        if extension == RecordCatalogueFileFormat.MAT.value:
+            self._read_mat(filepath)
+        return self
+
+    def _read_csv(self, filepath: Path) -> None:
+        def _str_to_list(s: str, dtype=float) -> list:
+            if s == "nan":
+                return []
+            return [dtype(i) for i in s.split(",") if i]
+
+        self.df = pl.read_csv(filepath).with_columns(
+            pl.col("timestamp").cast(pl.Datetime("us")),
+            pl.col("timestamp_orig").cast(pl.Datetime("us")),
+            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float)),
+            pl.col("hydrophone_sensitivity").map_elements(
+                partial(_str_to_list, dtype=float)
+            ),
+            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int)),
+        )
+
+    def _read_json(self, filepath: Path) -> None:
+        self.df = pl.read_json(filepath)
+
+    def _read_mat(self, filepath: Path) -> None:
+        mdict = scipy.io.loadmat(filepath)
+        self.records = self._mdict_to_records(mdict)
+        self.df = self._records_to_polars_df()
+
+    def _mdict_to_records(self, mdict: dict) -> list[Record]:
+        [mdict.pop(k, None) for k in MAT_KEYS]
+        cat_name = list(mdict.keys()).pop()
+        cat_data = mdict[cat_name]
+
+        filenames = cat_data["filenames"][0][0].astype(str).tolist()
+        timestamp_data = cat_data["timestamps"][0][0].transpose(2, 1, 0)
+        timestamp_orig_data = cat_data["timestamps_orig"][0][0].transpose(2, 1, 0)
+        rhfs_orig = float(cat_data["rhfs_orig"][0][0].squeeze())
+        rhfs = float(cat_data["rhfs"][0][0].squeeze())
+        fixed_gain = cat_data["fixed_gain"][0][0].squeeze().astype(float).tolist()
+        hydrophone_sensitivity = (
+            cat_data["hydrophone_sensitivity"][0][0].squeeze().astype(float).tolist()
+        )
+        hydrophone_SN = cat_data["hydrophone_SN"][0][0].squeeze().astype(int).tolist()
+
+        records = []
+        for i, f in enumerate(filenames):
+            n_records = cat_data["timestamps"][0][0].transpose(2, 1, 0).shape[1]
+            for j in range(n_records):
+                records.append(
+                    Record(
+                        filename=Path(f),
+                        record_number=j,
+                        file_format=validate_file_format(Path(f).suffix),
+                        timestamp=convert_yydfrac_to_timestamp(*timestamp_data[i][j]),
+                        timestamp_orig=convert_yydfrac_to_timestamp(
+                            *timestamp_orig_data[i][j]
+                        ),
+                        sampling_rate=rhfs,
+                        sampling_rate_orig=rhfs_orig,
+                        fixed_gain=fixed_gain,
+                        hydrophone_sensitivity=hydrophone_sensitivity,
+                        hydrophone_SN=hydrophone_SN,
+                    )
+                )
+
+        return records
+
     def _read_headers(
         self, filename: Path, file_format: str = None
     ) -> tuple[list[Header], FileFormat]:
@@ -201,26 +284,28 @@ class RecordCatalogue:
 
     def _records_to_mdict(self) -> dict:
         filenames = list(set([str(record.filename) for record in self.records]))
-
         timestamps = []
         timestamps_orig = []
         for filename in filenames:
-            ts = (
-                self.df.filter(pl.col("filename") == filename)
-                .select("timestamp")
-                .to_series()
-                .cast(pl.Int64)
+            timestamps.append(
+                (
+                    self.df.filter(pl.col("filename") == filename)
+                    .select("timestamp")
+                    .to_series()
+                    .cast(pl.Int64)
+                )
+                .to_numpy()
+                .astype("datetime64[us]")
             )
-            ts_orig = (
-                self.df.filter(pl.col("filename") == filename)
-                .select("timestamp_orig")
-                .to_series()
-                .cast(pl.Int64)
-            )
-
-            timestamps.append([np.datetime64(ts[i], "us") for i in range(len(ts))])
             timestamps_orig.append(
-                [np.datetime64(ts_orig[i], "us") for i in range(len(ts_orig))]
+                (
+                    self.df.filter(pl.col("filename") == filename)
+                    .select("timestamp_orig")
+                    .to_series()
+                    .cast(pl.Int64)
+                )
+                .to_numpy()
+                .astype("datetime64[us]")
             )
 
         return {
@@ -237,6 +322,7 @@ class RecordCatalogue:
         }
 
     def _records_to_polars_df(self) -> pl.DataFrame:
+        print(self.records[0])
         return (
             pl.DataFrame(self._records_to_dfdict())
             .with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
@@ -246,16 +332,16 @@ class RecordCatalogue:
     def save(self, savepath: Path, fmt: Union[str, list[str]] = "csv"):
         if isinstance(fmt, str):
             fmt = [fmt]
-        if not all(f in CatalogueFileFormat for f in fmt):
+        if not all(f in RecordCatalogueFileFormat for f in fmt):
             raise ValueError(f"File format {fmt} is not recognized.")
 
         savepath.parent.mkdir(parents=True, exist_ok=True)
 
-        if CatalogueFileFormat.CSV.name.lower() in fmt:
+        if RecordCatalogueFileFormat.CSV.name.lower() in fmt:
             self.write_csv(savepath.parent / (savepath.stem + ".csv"))
-        if CatalogueFileFormat.JSON.name.lower() in fmt:
+        if RecordCatalogueFileFormat.JSON.name.lower() in fmt:
             self.write_json(savepath.parent / (savepath.stem + ".json"))
-        if CatalogueFileFormat.MAT.name.lower() in fmt:
+        if RecordCatalogueFileFormat.MAT.name.lower() in fmt:
             self.write_mat(savepath.parent / (savepath.stem + ".mat"))
 
     @staticmethod
@@ -289,15 +375,21 @@ class RecordCatalogue:
         scipy.io.savemat(savepath, mdict)
 
 
-# def build_catalogues(queries: list[FileInfoQuery]) -> None:
-#     for q in queries:
-#         catalogue = _build_catalogue(q)
-#         catalogue.save_to_mat(
-#             savepath=Path(q.data.destination) / f"{q.serial}_FileInfo.mat"
-#         )
-#         catalogue.save_to_json(
-#             savepath=Path(q.data.destination) / f"{q.serial}_FileInfo.json"
-#         )
+def build_catalogues(queries: list[FileInfoQuery]) -> list[RecordCatalogue]:
+    return [RecordCatalogue().build(q) for q in queries]
+
+
+def build_and_save_catalogues(
+    queries: list[FileInfoQuery], fmt: Union[str, list[str]] = "csv"
+) -> None:
+    if isinstance(fmt, str):
+        fmt = [fmt]
+    if not all(f in RecordCatalogueFileFormat for f in fmt):
+        raise ValueError(f"File format {fmt} is not recognized.")
+    [
+        cat.save(savepath=Path(q.data.destination) / f"{q.serial}_FileInfo", fmt=fmt)
+        for q, cat in zip(queries, build_catalogues(queries))
+    ]
 
 
 # def read_data_from_catalogue(query: CatalogueQuery) -> DataStream:
