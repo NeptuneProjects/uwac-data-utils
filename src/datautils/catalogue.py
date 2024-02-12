@@ -22,8 +22,8 @@ from datautils.time import (
     TIME_CONVERSION_FACTOR,
     convert_timestamp_to_yyd,
     convert_to_datetime,
-    correct_clock_drift,
     convert_yydfrac_to_timestamp,
+    correct_clock_drift,
 )
 
 MAT_KEYS = ["__header__", "__version__", "__globals__"]
@@ -427,6 +427,7 @@ class RecordCatalogue:
             pl.DataFrame(self._records_to_dfdict())
             .with_columns(pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)))
             .with_columns(pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)))
+            .with_row_count()
         )
 
     def save(self, savepath: Path, fmt: Union[str, list[str]] = "csv"):
