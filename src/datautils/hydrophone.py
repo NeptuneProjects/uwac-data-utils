@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -12,6 +13,6 @@ class Hydrophone:
 
 @dataclass
 class HydrophoneSpecs:
-    fixed_gain: list[float]
-    sensitivity: list[float]
-    serial_number: list[int]
+    fixed_gain: Optional[list[float]] = 1.0
+    sensitivity: Optional[list[float]] = 1.0
+    serial_number: Optional[list[int]] = 0

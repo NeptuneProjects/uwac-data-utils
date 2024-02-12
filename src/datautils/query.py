@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import tomllib
 from typing import Optional, Union
@@ -13,8 +13,8 @@ from datautils.time import ClockParameters
 
 @dataclass
 class CatalogueQuery:
-    serial: str
-    destination: str = "."
+    catalogue: Path
+    destination: Path
     time_start: Optional[Union[float, np.datetime64]] = None
     time_end: Optional[Union[float, np.datetime64]] = None
     channels: Optional[Union[int, list[int]]] = None
@@ -22,6 +22,7 @@ class CatalogueQuery:
     def __repr__(self):
         return (
             f"CatalogueQuery(serial={self.serial}, "
+            f"catalogue={self.catalogue},"
             f"destination={self.destination}, "
             f"time_start={self.time_start}, "
             f"time_end={self.time_end}, "
@@ -41,8 +42,8 @@ class DataSelection:
 class FileInfoQuery:
     serial: str
     data: DataSelection
-    clock: ClockParameters
-    hydrophones: HydrophoneSpecs
+    clock: ClockParameters = field(default_factory=ClockParameters)
+    hydrophones: HydrophoneSpecs = field(default_factory=HydrophoneSpecs)
 
 
 def load_catalogue_query(filename: Path) -> list[CatalogueQuery]:
@@ -50,14 +51,14 @@ def load_catalogue_query(filename: Path) -> list[CatalogueQuery]:
         config = tomllib.load(f)
 
     queries = []
-    for serial, params in config.items():
+    for params in config.values():
         queries.append(
             CatalogueQuery(
-                serial,
-                params.get("destination"),
-                np.datetime64(params.get("time_start", None)),
-                np.datetime64(params.get("time_end", None)),
-                params.get("channels", None),
+                catalogue=Path(params.get("catalogue")),
+                destination=params.get("destination", Path.cwd()),
+                time_start=np.datetime64(params.get("time_start", None)),
+                time_end=np.datetime64(params.get("time_end", None)),
+                channels=params.get("channels", None),
             )
         )
 
@@ -70,16 +71,15 @@ def load_file_query(filename: Path) -> list[FileInfoQuery]:
 
     queries = []
     for serial, params in config.items():
-
         data = DataSelection(**params["data"])
+        clock_params = params.get("clock", {})
         clock = ClockParameters(
-            time_check_0=np.datetime64(params["clock"].get("time_check_0")),
-            time_check_1=np.datetime64(params["clock"].get("time_check_1")),
-            offset_0=params["clock"].get("offset_0", 0.0),
-            offset_1=params["clock"].get("offset_1", 0.0),
+            time_check_0=np.datetime64(clock_params.get("time_check_0", "NaT")),
+            time_check_1=np.datetime64(clock_params.get("time_check_1", "NaT")),
+            offset_0=clock_params.get("offset_0", 0.0),
+            offset_1=clock_params.get("offset_1", 0.0),
         )
-        hydrophone = HydrophoneSpecs(**params["hydrophone"])
-
+        hydrophone = HydrophoneSpecs(**params.get("hydrophone", {}))
         queries.append(FileInfoQuery(serial, data, clock, hydrophone))
 
     return queries
