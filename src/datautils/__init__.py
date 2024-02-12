@@ -7,5 +7,6 @@ import datautils.formats
 import datautils.hydrophone
 import datautils.query
 import datautils.time
+import datautils.util
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
