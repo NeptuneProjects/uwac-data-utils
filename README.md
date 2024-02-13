@@ -2,15 +2,27 @@
 
 This package contains general reading and formatting utilities for common underwater acoustic data formats.
 
+[!WARNING] This package is currently under development. The API is subject to change.
+
 ## Data Formats
 
 ### SHRU
+
+[!NOTE] `SHRU` data capability is currently implemented.
 
 Woods Hole Oceanographic Institution's (WHOI) Single-Hydrophone Recording Unit (SHRU) binary data format. All code has been adapted from Y.T. Lin's original MATLAB code.
 
 ### SIO
 
+[!NOTE] `SIO` data capability is not yet implemented.
+
 Scripps Institution of Oceanography's (SIO) binary data format. Code has been adapted from Hunter Akins and Aaron Thode, with contributions from Geoff Edelman, James Murray, and Dave Ensberg.
+
+### WAV
+
+[!NOTE] `WAV` data capability is not yet implemented.
+
+The common `.wav` audio file format. This is a standard format for storing audio data, and is widely supported by many software packages.
 
 
 ## Installation
