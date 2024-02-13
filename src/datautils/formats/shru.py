@@ -2,19 +2,20 @@
 
 from array import array
 from dataclasses import dataclass
-import json
 import logging
 from pathlib import Path
 import struct
 from typing import BinaryIO, Optional, Union
+import warnings
 
 import numpy as np
+
+from datautils.util import db_to_linear
 
 ADC_HALFSCALE = 2.5  # ADC half scale volts (+/- half scale is ADC i/p range)
 ADC_MAXVALUE = 2**23  # ADC maximum halfscale o/p value, half the 2's complement range
 BYTES_HDR = 1024
 BYTES_PER_SAMPLE = 3
-# TODO: Add voltage to pressure conversion
 
 
 @dataclass(frozen=True)
@@ -75,16 +76,54 @@ class SHRUHeader:
     rhkeyl: str
 
 
-def chk_read(count: int) -> int:
-    """Check if the read count is correct."""
+def _chk_read(count: int) -> int:
+    """Check if the read count is correct.
+
+    Currently unused.
+
+    Args:
+        count (int): Read count.
+
+    Returns:
+        int: 0 if count is 0, -1 otherwise.
+    """
     if count == 0:
         return -1
     return 0
 
 
-def convert_24bit_to_int(
+def condition_data(
+    data: np.ndarray, fixed_gain: list[float], sensitivity: list[float]
+) -> tuple[np.ndarray, str]:
+    """Condition 24-bit data to pressure.
+
+    Args:
+        data (np.ndarray): 24-bit data.
+        fixed_gain (list[float]): Fixed gain [dB].
+        sensitivity (list[float]): Sensitivity [dB].
+
+    Returns:
+        tuple[np.ndarray, str]: Converted data and units.
+    """
+    linear_fixed_gain = db_to_linear(fixed_gain)
+    linear_sensitivity = db_to_linear(sensitivity)
+    data, _ = _convert_to_voltage(data, linear_fixed_gain)
+    return _convert_to_pressure(data, linear_sensitivity)
+
+
+def _convert_24bit_to_int(
     raw_data: bytes, nch: int, spts: int
 ) -> tuple[np.ndarray, int]:
+    """Convert 24-bit data to 32-bit integers.
+
+    Args:
+        raw_data (bytes): 24-bit data.
+        nch (int): Number of channels.
+        spts (int): Number of samples per channel.
+
+    Returns:
+        tuple[np.ndarray, int]: Converted data and count.
+    """
     # Convert the byte data to 24-bit integers (bit manipulation may be required)
     # Ensure we have a suitable type for bit manipulation
     data = (
@@ -99,9 +138,34 @@ def convert_24bit_to_int(
     return data_24bit.reshape(spts, nch), len(raw_data) // BYTES_PER_SAMPLE
 
 
-def convert_to_voltage(data: np.ndarray, fixed_gain: list[float]) -> np.ndarray:
-    norm_factor = ADC_HALFSCALE / ADC_MAXVALUE / np.array(fixed_gain)
-    return data * norm_factor[np.newaxis, :]
+def _convert_to_pressure(
+    data: np.ndarray, linear_sensitivity: list[float]
+) -> tuple[np.ndarray, str]:
+    """Convert voltage data to pressure.
+
+    Args:
+        data (np.ndarray): Voltage data.
+
+    Returns:
+        tuple[np.ndarray, str]: Converted data and units.
+    """
+    return data * np.array(linear_sensitivity)[np.newaxis, :], "uPa"
+
+
+def _convert_to_voltage(
+    data: np.ndarray, linear_fixed_gain: list[float]
+) -> tuple[np.ndarray, str]:
+    """Convert 24-bit data to voltage.
+
+    Args:
+        data (np.ndarray): 24-bit data.
+        fixed_linear_gain (list[float]): Fixed linear gain [V/count].
+
+    Returns:
+        tuple[np.ndarray, str]: Converted data and units.
+    """
+    norm_factor = ADC_HALFSCALE / ADC_MAXVALUE / np.array(linear_fixed_gain)
+    return data * norm_factor[np.newaxis, :], "V"
 
 
 def get_data_record(fid: BinaryIO, nch: int, spts: int) -> tuple[np.ndarray, int]:
@@ -109,23 +173,40 @@ def get_data_record(fid: BinaryIO, nch: int, spts: int) -> tuple[np.ndarray, int
     data_bytes = fid.read(total_bytes)
     if len(data_bytes) != total_bytes:
         raise ValueError("Failed to read all data bytes.")
-    return convert_24bit_to_int(data_bytes, nch, spts)
+    return _convert_24bit_to_int(data_bytes, nch, spts)
 
 
 def get_num_channels(drhs: list[SHRUHeader]) -> int:
     for record in drhs:
         if record.ch != drhs[0].ch:
-            raise Warning("Number of channels varies across records.")
+            warnings.warn("Number of channels varies across records.")
     return drhs[0].ch
 
 
-def read_24bit_data(
+def read_data(
     filename: Path,
     records: Union[int, list[int]],
     channels: Union[int, list[int]],
     fixed_gain: Union[float, list[float]] = 20.0,
     drhs: Optional[list[SHRUHeader]] = None,
 ) -> tuple[np.ndarray, SHRUHeader]:
+    """Read 24-bit data from a SHRU file.
+
+    Args:
+        filename (Path): File to read.
+        records (Union[int, list[int]]): Record number(s) to read.
+        channels (Union[int, list[int]]): Channel number(s) to read.
+        fixed_gain (Union[float, list[float]], optional): Fixed gain [dB]. Defaults to 20.0.
+        drhs (Optional[list[SHRUHeader]], optional): Data record headers. Defaults to None.
+
+    Returns:
+        tuple[np.ndarray, SHRUHeader]: Data and header.
+
+    Raises:
+        ValueError: If the number of channels requested exceeds the number of channels in the file.
+        ValueError: If the length of fixed_gain does not match the length of channels.
+        ValueError: If the record is corrupted.
+    """
 
     if not isinstance(records, list):
         records = [records]
@@ -174,15 +255,22 @@ def read_24bit_data(
 
             # Keep only selected channels
             data_block = data_block[:, channels]
-            # Convert data to voltage
-            data_v = convert_to_voltage(data_block, fixed_gain)
+
             # Store data
-            data[:, i * spts : (i + 1) * spts] = data_v.T
+            data[:, i * spts : (i + 1) * spts] = data_block.T
 
     return data.T, header1
 
 
 def _read_header(fid: BinaryIO) -> tuple[SHRUHeader, int]:
+    """Read a SHRU data record header.
+
+    Args:
+        fid (BinaryIO): File to read.
+
+    Returns:
+        tuple[SHRUHeader, int]: Header and status.
+    """
     status = 0
 
     rhkey = fid.read(4).decode("utf-8")
@@ -314,7 +402,14 @@ def _read_header(fid: BinaryIO) -> tuple[SHRUHeader, int]:
 
 
 def read_shru_headers(filename: Path) -> list[SHRUHeader]:
-    """Read all data record headers from a SHRU file."""
+    """Read all data record headers from a SHRU file.
+
+    Args:
+        filename (Path): File to read.
+
+    Returns:
+        list[SHRUHeader]: Data record headers.
+    """
     with open(filename, "rb") as fid:
         fid.seek(0, 0)  # Go to the beginning of the file
         drhs = []
@@ -339,7 +434,17 @@ def read_shru_headers(filename: Path) -> list[SHRUHeader]:
             drhs.append(drh)
 
 
-def swap_long(x: int) -> int:
+def _swap_long(x: int) -> int:
+    """Swap the byte order of a 32-bit integer.
+
+    Not currently used.
+
+    Args:
+        x (int): Integer to swap.
+
+    Returns:
+        int: Swapped integer.
+    """
     if x <= (2**16 - 1):
         x_hex = f"{x:04x}0000"
     else:
@@ -347,12 +452,32 @@ def swap_long(x: int) -> int:
     return int(x_hex[6:8] + x_hex[4:6] + x_hex[2:4] + x_hex[0:2], base=16)
 
 
-def swap_short(x: int) -> int:
+def _swap_short(x: int) -> int:
+    """Swap the byte order of a 16-bit integer.
+
+    Not currently used.
+
+    Args:
+        x (int): Integer to swap.
+
+    Returns:
+        int: Swapped integer.
+    """
     x_hex = f"{x:04x}"
     return int(x_hex[2:4] + x_hex[0:2], base=16)
 
 
-def swap_string(x: str) -> str:
+def _swap_string(x: str) -> str:
+    """Swap the byte order of a string.
+
+    Not currently used.
+
+    Args:
+        x (str): String to swap.
+
+    Returns:
+        str: Swapped string.
+    """
     k = 2 * int(len(x) / 2)
     new_str = ""
     for i in range(0, k, 2):

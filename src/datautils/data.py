@@ -15,11 +15,14 @@ import numpy as np
 import polars as pl
 
 from datautils.catalogue import RecordCatalogue
-from datautils.formats.shru import read_24bit_data
+from datautils.formats.formats import FileFormat, validate_file_format
+from datautils.formats.shru import read_data as read_shru_data
+from datautils.formats.shru import condition_data as condition_shru_data
 from datautils.query import CatalogueQuery
 from datautils.time import (
     TIME_CONVERSION_FACTOR,
     TIME_PRECISION,
+    datetime_linspace,
 )
 from datautils.util import create_empty_data_chunk, round_away
 
@@ -60,12 +63,24 @@ class DataStreamStats:
     time_init: Optional[Union[float, np.datetime64]] = None
     time_end: Optional[Union[float, np.datetime64]] = None
     sampling_rate: Optional[float] = None
+    units: Optional[str] = None
 
 
 @dataclass
 class DataStream:
     # TODO: Enable time vector construction
-    """Contains acoustic data and time vector."""
+    """Contains acoustic data and data statistics.
+
+    Args:
+        stats (DataStreamStats): Data statistics.
+        waveform (Optional[np.ndarray], optional): Acoustic data. Defaults to None.
+
+    Returns:
+        DataStream: Data stream object.
+
+    Raises:
+        NoDataWarning: If no data is found in the object.
+    """
 
     stats: Optional[DataStreamStats]
     waveform: Optional[np.ndarray] = None
@@ -103,6 +118,10 @@ class DataStream:
                 TIME_PRECISION,
             )
 
+    def __len__(self) -> int:
+        """Returns length of data."""
+        return self.num_samples
+
     def __repr__(self) -> str:
         """Returns string representation of the object."""
         return (
@@ -112,12 +131,20 @@ class DataStream:
             f"num_samples={self.num_samples}, "
             f"time_init={self.stats.time_init}, "
             f"time_end={self.stats.time_end}, "
-            f"sampling_rate={self.stats.sampling_rate})"
+            f"sampling_rate={self.stats.sampling_rate}), "
+            f"units={self.stats.units}"
         )
 
     @property
     def num_channels(self) -> int:
-        """Returns number of channels in data."""
+        """Returns number of channels in data.
+
+        Returns:
+            int: Number of channels.
+
+        Raises:
+            NoDataWarning: If no data is found in the object.
+        """
         if self.waveform is None:
             warnings.warn("No data in variable 'X'.", NoDataWarning)
             return None
@@ -125,11 +152,35 @@ class DataStream:
 
     @property
     def num_samples(self) -> int:
-        """Returns number of samples in data."""
+        """Returns number of samples in data.
+
+        Returns:
+            int: Number of samples.
+
+        Raises:
+            NoDataWarning: If no data is found in the object.
+        """
         if self.waveform is None:
             warnings.warn("No data in variable 'X'.", NoDataWarning)
             return None
         return self.waveform.shape[0]
+
+    @property
+    def time_vector(self) -> np.ndarray:
+        """Returns time vector.
+
+        Returns:
+            np.ndarray: Time vector.
+
+        Raises:
+            NoDataWarning: If no data is found in the object.
+        """
+        if self.waveform is None:
+            warnings.warn("No data in variable 'X'.", NoDataWarning)
+            return None
+        return datetime_linspace(
+            start=self.stats.time_init, end=self.stats.time_end, num=self.num_samples
+        )
 
     def copy(self) -> DataStream:
         return deepcopy(self)
@@ -389,16 +440,33 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
         ValueError: If multiple sampling rates are found in the catalogue.
         BufferExceededWarning: If buffer length is less than expected samples.
     """
+
+    def _get_conditioner(file_format: FileFormat) -> callable:
+        if file_format == FileFormat.SHRU:
+            return condition_shru_data
+        else:
+            raise ValueError(f"File format {file_format} not supported.")
+
+    def _get_reader(file_format: FileFormat) -> callable:
+        if file_format == FileFormat.SHRU:
+            return read_shru_data
+        else:
+            raise ValueError(f"File format {file_format} not supported.")
+
     catalogue = RecordCatalogue().load(query.catalogue)
+    
     num_channels = len(query.channels)
     df = select_records_by_time(catalogue.df, query.time_start, query.time_end)
     if len(df) == 0:
         raise NoDataError("No data found for the given query parameters.")
     logging.debug(f"Reading {len(df)} records.")
 
-    filenames = sorted(df.unique(subset=["filename"])["filename"].to_list())
+    filenames = [
+        Path(f) for f in sorted(df.unique(subset=["filename"])["filename"].to_list())
+    ]
     timestamps = sorted(df.unique(subset=["filename"])["timestamp"].to_numpy())
     fixed_gains = df.unique(subset=["filename"])["fixed_gain"].to_list()
+    sensitivities = df.unique(subset=["filename"])["hydrophone_sensitivity"].to_list()
     sampling_rates = (
         df.unique(subset=["filename"])
         .unique(subset=["sampling_rate"])["sampling_rate"]
@@ -425,7 +493,9 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
     marker = 0
     time_init = None
     time_end = None
-    for filename, timestamp, fixed_gain in zip(filenames, timestamps, fixed_gains):
+    for filename, timestamp, fixed_gain, sensitivity in zip(
+        filenames, timestamps, fixed_gains, sensitivities
+    ):
         logging.debug(f"Reading {filename} at {timestamp}.")
         # Define 'time_init' for waveform:
         if time_init is None:
@@ -442,18 +512,23 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
             break
 
         # Get record numbers for the file:
-        rec_ind = df.filter(pl.col("filename") == filename)["record_number"].to_list()
+        rec_ind = df.filter(pl.col("filename") == str(filename))[
+            "record_number"
+        ].to_list()
         logging.debug(f"Reading records {rec_ind} from {filename}.")
 
         # Read data from file; header is not used here:
-        # TODO: Create reader factory to read different file formats
-        # TODO: De-couple data extraction from signal conditioning steps
-        data, _ = read_24bit_data(
+        raw_data, _ = _get_reader(file_format=validate_file_format(filename.suffix))(
             filename=filename,
             records=rec_ind,
             channels=query.channels,
             fixed_gain=fixed_gain,
         )
+
+        # Condition data and get units:
+        data, units = _get_conditioner(
+            file_format=validate_file_format(filename.suffix)
+        )(raw_data, fixed_gain, sensitivity)
 
         # Store data in waveform & advance marker by data length:
         waveform[marker : marker + data.shape[0]] = data
@@ -473,6 +548,7 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
             time_init=time_init,
             time_end=time_end,
             sampling_rate=sampling_rate,
+            units=units,
         ),
         waveform=waveform,
     )

@@ -122,6 +122,11 @@ def convert_pldatetime_to_datetime64(pl_datetime: pl.Series) -> list[np.datetime
     return np.datetime64(int64_us, TIME_PRECISION)
 
 
+def datetime_linspace(start: np.datetime64, end: np.datetime64, num: int) -> np.ndarray:
+    start_int = start.astype("int64")
+    end_int = end.astype("int64")
+    return np.linspace(start_int, end_int, num, dtype="int64").astype(f"datetime64[{TIME_PRECISION}]")
+
 # def convert_datetime64_to_pldatetime(np_datetime64: np.datetime64) -> str:
 #     np_datetime64_us = np_datetime64.astype("datetime64[us]")
 #     print(type(np_datetime64_us))

@@ -59,6 +59,31 @@ def create_empty_data_chunk(
     return temp
 
 
+def db_to_linear(
+    dbgain: Union[float, list[float]]
+) -> Union[float, list[float]]:
+    """Converts a gain in dB to a linear gain factor.
+
+    This function is adapted from the ObsPy library:
+    https://docs.obspy.org/index.html
+
+    Args:
+        dbgain (float): Gain in dB.
+
+    Returns:
+        float: Linear gain factor.
+
+    Examples:
+    >>> dbgain_to_lineargain(6)
+    2.0
+    >>> dbgain_to_lineargain(20)
+    10.0
+    """
+    if isinstance(dbgain, list):
+        return [10.0 ** (gain / 20.0) for gain in dbgain]
+    return 10.0 ** (dbgain / 20.0)
+
+
 def round_away(number: Union[int, float]) -> int:
     """Function to round a number away from zero to the nearest integer.
     This is potentially desired behavior in the trim functions.
