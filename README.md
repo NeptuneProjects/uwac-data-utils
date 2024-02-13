@@ -229,3 +229,10 @@ The returned `datastream` is a `datautils.data.DataStream` object, which contain
 - `waveform`: The data as a `numpy.ndarray` with shape `(n_samples, n_channels)`.
 - `stats`: An object containing relevant metadata about the data.
 - `time`: The time of the data as a `numpy.ndarray` with shape `(n_samples,)`.
+
+## Acknowledgements
+
+Package written by William Jenkins, with code derived from:
+- Y.T. Lin
+- Hunter Akins, Aaron Thode, Geoff Edelman, James Murray, and Dave Ensberg
+- The ObsPy Development Team
