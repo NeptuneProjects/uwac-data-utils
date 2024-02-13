@@ -368,7 +368,6 @@ class DataStream:
             endtime = self.stats.time_end - np.timedelta64(
                 int(endtime * TIME_CONVERSION_FACTOR), TIME_PRECISION
             )
-            print(endtime)
         elif not isinstance(endtime, np.datetime64):
             raise TypeError("endtime must be of type float, int, or np.datetime64.")
 

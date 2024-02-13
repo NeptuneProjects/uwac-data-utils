@@ -100,7 +100,6 @@ def correct_clock_drift(
     Returns:
         np.datetime64: Corrected timestamp.
     """
-    print(clock.time_check_0, clock.time_check_1)
     if np.isnat(clock.time_check_0) or np.isnat(clock.time_check_1):
         return timestamp
 
