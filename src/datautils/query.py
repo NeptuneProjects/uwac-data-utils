@@ -21,8 +21,7 @@ class CatalogueQuery:
 
     def __repr__(self):
         return (
-            f"CatalogueQuery(serial={self.serial}, "
-            f"catalogue={self.catalogue},"
+            f"CatalogueQuery(catalogue={self.catalogue},"
             f"destination={self.destination}, "
             f"time_start={self.time_start}, "
             f"time_end={self.time_end}, "
