@@ -571,10 +571,11 @@ def select_records_by_time(
     if np.isnat(time_start) and time_end is not None:
         return df.filter(pl.col("timestamp") <= time_end)
 
+    last_row_before_start = df.filter(pl.col("timestamp") < time_start)["row_nr"].max()
     row_numbers = df.filter(
         (pl.col("timestamp") >= time_start) & (pl.col("timestamp") <= time_end)
     )["row_nr"].to_list()
-    row_numbers.insert(0, row_numbers[0] - 1)
+    row_numbers.insert(0, last_row_before_start)
     mask = pl.col("row_nr").is_in(row_numbers)
     return df.filter(mask)
 
