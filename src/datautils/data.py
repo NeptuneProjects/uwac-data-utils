@@ -205,7 +205,9 @@ class DataStream:
 
     def write_wav(self, path: Path) -> None:
         """Writes data to WAV file."""
-        scipy.io.wavfile.write(path, int(self.stats.sampling_rate), self.waveform)
+        scipy.io.wavfile.write(
+            path, int(self.stats.sampling_rate), self.waveform.astype(np.int32)
+        )
 
     def trim(
         self,
