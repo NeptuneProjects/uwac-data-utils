@@ -13,6 +13,7 @@ import warnings
 
 import numpy as np
 import polars as pl
+import scipy
 
 from datautils.catalogue import RecordCatalogue
 from datautils.formats.formats import FileFormat, validate_file_format
@@ -201,6 +202,10 @@ class DataStream:
     def write(self, path: Path) -> None:
         """Writes data to file."""
         np.savez(path, waveform=self.waveform, stats=self.stats)
+
+    def write_wav(self, path: Path) -> None:
+        """Writes data to WAV file."""
+        scipy.io.wavfile.write(path, int(self.stats.sampling_rate), self.waveform)
 
     def trim(
         self,
@@ -453,7 +458,7 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
             raise ValueError(f"File format {file_format} not supported.")
 
     catalogue = RecordCatalogue().load(query.catalogue)
-    
+
     num_channels = len(query.channels)
     df = select_records_by_time(catalogue.df, query.time_start, query.time_end)
     if len(df) == 0:
