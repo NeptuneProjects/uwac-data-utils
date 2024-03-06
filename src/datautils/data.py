@@ -14,6 +14,7 @@ import warnings
 import numpy as np
 import polars as pl
 import scipy
+import scipy.signal as signal
 
 from datautils.catalogue import RecordCatalogue
 from datautils.formats.formats import FileFormat, validate_file_format
@@ -208,6 +209,45 @@ class DataStream:
         scipy.io.wavfile.write(
             path, int(self.stats.sampling_rate), self.waveform.astype(np.int32)
         )
+
+    def decimate(
+        self,
+        factor: int,
+        n: int = Optional[None],
+        ftype: str = "iir",
+        axis: int = -1,
+        zero_phase: bool = True,
+    ) -> DataStream:
+        """Decimates data.
+
+        Args:
+            factor (int): Decimation factor.
+            no_filter (bool): If True, no filtering is applied.
+
+        Returns:
+            DataStream: Decimated data stream.
+        """
+
+        self.waveform = signal.decimate(
+            self.waveform, factor, n, ftype, axis, zero_phase
+        )
+        self.stats.sampling_rate = self.stats.sampling_rate / float(factor)
+        return self
+
+    def max(self) -> np.ndarray:
+        """Returns maximum value of data.
+
+        Returns:
+            np.ndarray: Maximum value of data.
+        """
+        _max = np.atleast_1d(self.waveform.max(axis=0))
+        _min = np.atleast_1d(self.waveform.min(axis=0))
+
+        for i in range(self.num_channels):
+            if abs(_max[i]) < abs(_min[i]):
+                _max[i] = _min[i]
+
+        return _max.squeeze()
 
     def trim(
         self,
