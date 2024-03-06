@@ -213,7 +213,7 @@ class DataStream:
     def decimate(
         self,
         factor: int,
-        n: int = Optional[None],
+        n: Optional[int] = None,
         ftype: str = "iir",
         axis: int = 0,
         zero_phase: bool = True,
