@@ -215,14 +215,18 @@ class DataStream:
         factor: int,
         n: int = Optional[None],
         ftype: str = "iir",
-        axis: int = -1,
+        axis: int = 0,
         zero_phase: bool = True,
     ) -> DataStream:
         """Decimates data.
 
         Args:
             factor (int): Decimation factor.
-            no_filter (bool): If True, no filtering is applied.
+            n (int, optional): The order of the filter. Defaults to None.
+            ftype (str, optional): The type of the filter. Defaults to 'iir'.
+            axis (int, optional): The axis along which to decimate. Defaults to 0.
+            zero_phase (bool, optional): Prevent phase shift by filtering forward 
+                and backward. Defaults to True.
 
         Returns:
             DataStream: Decimated data stream.
