@@ -21,6 +21,7 @@ from datautils.formats.formats import FileFormat, validate_file_format
 from datautils.formats.shru import read_data as read_shru_data
 from datautils.formats.shru import condition_data as condition_shru_data
 from datautils.query import CatalogueQuery
+from datautils.signal import get_filter
 from datautils.time import (
     TIME_CONVERSION_FACTOR,
     TIME_PRECISION,
@@ -236,6 +237,21 @@ class DataStream:
             self.waveform, factor, n, ftype, axis, zero_phase
         )
         self.stats.sampling_rate = self.stats.sampling_rate / float(factor)
+        return self
+
+    def filter(self, filt_type: str, **kwargs) -> DataStream:
+        """Filters data.
+
+        Args:
+            filt_type (str): Filter type.
+            **kwargs: Additional keyword arguments. Frequency parameters are
+                expected for bandpass, bandstop, highpass, and lowpass filters.
+
+        Returns:
+            DataStream: Filtered data stream.
+        """
+        func = get_filter(filt_type)
+        self.waveform = func(data=self.waveform, fs=self.stats.sampling_rate, **kwargs)
         return self
 
     def max(self) -> np.ndarray:
