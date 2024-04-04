@@ -3,8 +3,11 @@
 import warnings
 
 import numpy as np
-import scipy.signal as signal
 
+try:
+    import cupyx.scipy.signal as signal
+except ImportError:
+    import scipy.signal as signal
 
 def get_filter(filt_type: str) -> callable:
     FILTER_REGISTRY = {
