@@ -165,7 +165,7 @@ cython_debug/
 # Workspace
 .vscode
 docs/
-tests/
 *.png
 *.csv
 **/*.mat
+dev/
