@@ -64,19 +64,18 @@ def bandstop(
     fe = 0.5 * fs
     low = freqmin / fe
     high = freqmax / fe
-    if high > 1:
-        high = 1.0
+    if high - 1.0 >= -1e-6:
+        high = 1.0 - 1e-6
         warnings.warn(
             (
                 f"Selected high corner frequency ({freqmax}) is above "
                 f"Nyquist ({fe}). Setting Nyquist as high corner."
             )
         )
-    if low > 1:
+    if low > 1.0:
         raise ValueError(
             f"Selected low corner frequency ({freqmin}) is above Nyquist ({fe})."
         )
-
     z, p, k = signal.iirfilter(
         corners, [low, high], btype="bandstop", ftype="butter", output="zpk"
     )
