@@ -40,6 +40,7 @@ class TestBandpass(unittest.TestCase):
         expected_result = signal.sosfilt(
             signal.butter(4, 1.0 / (0.5 * self.fs), btype="high", output="sos"),
             self.data,
+            axis=0,
         )
         np.testing.assert_array_equal(result, expected_result)
 
@@ -56,7 +57,7 @@ class TestBandpass(unittest.TestCase):
             ftype="butter",
             output="zpk",
         )
-        expected_result = signal.sosfilt(signal.zpk2sos(*sos), self.data)
+        expected_result = signal.sosfilt(signal.zpk2sos(*sos), self.data, axis=0)
         np.testing.assert_array_equal(result, expected_result)
 
     def test_bandpass_zerophase(self):
@@ -68,8 +69,8 @@ class TestBandpass(unittest.TestCase):
             ftype="butter",
             output="zpk",
         )
-        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data)
-        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[::-1])[::-1]
+        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data, axis=0)
+        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[:-1], axis=0)[:-1]
         np.testing.assert_array_equal(result, expected_result)
 
 
@@ -116,8 +117,8 @@ class TestBandstop(unittest.TestCase):
             ftype="butter",
             output="zpk",
         )
-        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data)
-        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[::-1])[::-1]
+        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data, axis=0)
+        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[:-1], axis=0)[:-1]
         np.testing.assert_array_almost_equal(result, expected_result)
 
 
@@ -152,8 +153,8 @@ class TestHighPass(unittest.TestCase):
             ftype="butter",
             output="zpk",
         )
-        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data)
-        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[::-1])[::-1]
+        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data, axis=0)
+        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[:-1], axis=0)[:-1]
         np.testing.assert_array_almost_equal(result, expected_result)
 
 
@@ -189,8 +190,8 @@ class TestLowPass(unittest.TestCase):
             ftype="butter",
             output="zpk",
         )
-        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data)
-        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[::-1])[::-1]
+        firstpass = signal.sosfilt(signal.zpk2sos(*sos), self.data, axis=0)
+        expected_result = signal.sosfilt(signal.zpk2sos(*sos), firstpass[:-1], axis=0)[:-1]
         np.testing.assert_array_almost_equal(result, expected_result)
 
 
