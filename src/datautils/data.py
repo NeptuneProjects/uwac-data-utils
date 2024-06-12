@@ -90,7 +90,17 @@ class DataStream:
 
     def __getitem__(self, index: Union[int, slice]) -> np.ndarray:
         """Returns data and time vector sliced by time index."""
-        return self.waveform[index]
+        orig_timevec = self.time_vector
+        stats = deepcopy(self.stats)
+        if isinstance(index, tuple):
+            stats.channels = self.stats.channels[index[1]]
+            new_timevec = orig_timevec[index[0]]
+        else:
+            new_timevec = orig_timevec[index]
+        stats.time_init = new_timevec[0]
+        stats.time_end = new_timevec[-1]
+        waveform = self.waveform[index]
+        return DataStream(stats=stats, waveform=waveform)
 
     def __post_init__(self):
         """Initializes data and time vector."""
@@ -151,6 +161,8 @@ class DataStream:
         if self.waveform is None:
             warnings.warn("No data in variable 'X'.", NoDataWarning)
             return None
+        if len(self.waveform.shape) == 1:
+            return 1
         return self.waveform.shape[1]
 
     @property
