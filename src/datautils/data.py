@@ -604,6 +604,8 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
         )
 
         # Condition data and get units:
+        print(fixed_gain, type(fixed_gain))
+        print(sensitivity, type(sensitivity))
         data, units = _get_conditioner(
             file_format=validate_file_format(filename.suffix)
         )(raw_data, fixed_gain, sensitivity)
