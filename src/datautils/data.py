@@ -238,7 +238,7 @@ class DataStream:
             n (int, optional): The order of the filter. Defaults to None.
             ftype (str, optional): The type of the filter. Defaults to 'iir'.
             axis (int, optional): The axis along which to decimate. Defaults to 0.
-            zero_phase (bool, optional): Prevent phase shift by filtering forward 
+            zero_phase (bool, optional): Prevent phase shift by filtering forward
                 and backward. Defaults to True.
 
         Returns:
@@ -519,6 +519,11 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
         BufferExceededWarning: If buffer length is less than expected samples.
     """
 
+    def _enforce_sorted_df(df: pl.DataFrame) -> pl.DataFrame:
+        return df.sort(by="timestamp").replace_column(
+            0, pl.Series("row_nr", list(range(len(df))))
+        )
+
     def _get_conditioner(file_format: FileFormat) -> callable:
         if file_format == FileFormat.SHRU:
             return condition_shru_data
@@ -534,7 +539,9 @@ def read(query: CatalogueQuery, max_buffer: int = MAX_BUFFER) -> DataStream:
     catalogue = RecordCatalogue().load(query.catalogue)
 
     num_channels = len(query.channels)
-    df = select_records_by_time(catalogue.df, query.time_start, query.time_end)
+    df = select_records_by_time(
+        _enforce_sorted_df(catalogue.df), query.time_start, query.time_end
+    )
     if len(df) == 0:
         raise NoDataError("No data found for the given query parameters.")
     logging.debug(f"Reading {len(df)} records.")
@@ -641,15 +648,19 @@ def select_records_by_time(
     if time_start > time_end:
         raise ValueError("time_start must be less than time_end.")
     if np.isnat(time_start) and np.isnat(time_end):
+        logging.debug("No times provided; returning all rows.")
         return df
     if time_start is not None and np.isnat(time_end):
+        logging.debug("Only start time provided; returning all rows after.")
         row_numbers = df.filter(pl.col("timestamp") >= time_start)["row_nr"].to_list()
         row_numbers.insert(0, row_numbers[0] - 1)
         mask = pl.col("row_nr").is_in(row_numbers)
         return df.filter(mask)
     if np.isnat(time_start) and time_end is not None:
+        logging.debug("Only end time provided; returning all rows before.")
         return df.filter(pl.col("timestamp") <= time_end)
-
+    
+    logging.debug("Start and end times provided; returning rows between.")
     last_row_before_start = df.filter(pl.col("timestamp") < time_start)["row_nr"].max()
     row_numbers = df.filter(
         (pl.col("timestamp") >= time_start) & (pl.col("timestamp") <= time_end)
