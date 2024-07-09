@@ -264,15 +264,14 @@ class RecordCatalogue:
                 return []
             return [dtype(i) for i in s.split(",") if i]
 
-        self.df = pl.read_csv(filepath)
-        self.df = self.df.with_columns(
+        self.df = pl.read_csv(filepath).with_columns(
             pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)),
             pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)),
-            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float), return_dtype=pl.List(pl.Float64)),
+            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float), return_dtype=pl.List(float)),
             pl.col("hydrophone_sensitivity").map_elements(
-                partial(_str_to_list, dtype=float), return_dtype=pl.List(pl.Float64)
+                partial(_str_to_list, dtype=float), return_dtype=pl.List(float)
             ),
-            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int), return_dtype=pl.List(pl.Int32)),
+            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int), return_dtype=pl.List(int)),
         )
 
     def _read_json(self, filepath: Path) -> None:

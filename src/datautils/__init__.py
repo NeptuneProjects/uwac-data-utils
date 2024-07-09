@@ -10,4 +10,4 @@ import datautils.signal
 import datautils.time
 import datautils.util
 
-__version__ = "0.0.13"
+__version__ = "0.0.14"
