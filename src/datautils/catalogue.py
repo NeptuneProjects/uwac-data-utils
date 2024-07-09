@@ -267,11 +267,11 @@ class RecordCatalogue:
         self.df = pl.read_csv(filepath).with_columns(
             pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)),
             pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)),
-            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float)),
+            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float, return_dtype=pl.Float64)),
             pl.col("hydrophone_sensitivity").map_elements(
-                partial(_str_to_list, dtype=float)
+                partial(_str_to_list, dtype=float, return_dtype=pl.Float64)
             ),
-            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int)),
+            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int, return_dtype=pl.Int32)),
         )
 
     def _read_json(self, filepath: Path) -> None:
