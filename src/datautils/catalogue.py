@@ -166,7 +166,8 @@ class RecordCatalogue:
         Raises:
             FileNotFoundError: If no SHRU files are found in the directory.
         """
-        files = sorted(Path(query.data.directory).glob(query.data.glob_pattern))
+        files = Path(query.data.directory).glob(query.data.glob_pattern)
+        files.sort(key=lambda x: x.name)
 
         if len(files) == 0:
             logging.error("No SHRU files found in directory.")
@@ -199,8 +200,10 @@ class RecordCatalogue:
                 )
             corrected_records = callback.format_records(records_from_file)
             records.extend(corrected_records)
-            logging.debug(f"{len(records) + 1} records | {j}/{len(files)} files processed.")
-            
+            logging.debug(
+                f"{len(records) + 1} records | {j}/{len(files)} files processed."
+            )
+
         self.records = records
         self.df = self._records_to_polars_df()
         return self
@@ -219,9 +222,15 @@ class RecordCatalogue:
             return ",".join([str(i) for i in lst])
 
         return df.with_columns(
-            pl.col("fixed_gain").map_elements(_to_list, return_dtype=pl.List(pl.Float64)),
-            pl.col("hydrophone_sensitivity").map_elements(_to_list, return_dtype=pl.List(pl.Float64)),
-            pl.col("hydrophone_SN").map_elements(_to_list, return_dtype=pl.List(pl.Int32)),
+            pl.col("fixed_gain").map_elements(
+                _to_list, return_dtype=pl.List(pl.Float64)
+            ),
+            pl.col("hydrophone_sensitivity").map_elements(
+                _to_list, return_dtype=pl.List(pl.Float64)
+            ),
+            pl.col("hydrophone_SN").map_elements(
+                _to_list, return_dtype=pl.List(pl.Int32)
+            ),
         )
 
     def load(self, filepath: Path) -> RecordCatalogue:
@@ -267,11 +276,15 @@ class RecordCatalogue:
         self.df = pl.read_csv(filepath).with_columns(
             pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)),
             pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)),
-            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float), return_dtype=pl.List(float)),
+            pl.col("fixed_gain").map_elements(
+                partial(_str_to_list, dtype=float), return_dtype=pl.List(float)
+            ),
             pl.col("hydrophone_sensitivity").map_elements(
                 partial(_str_to_list, dtype=float), return_dtype=pl.List(float)
             ),
-            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int), return_dtype=pl.List(int)),
+            pl.col("hydrophone_SN").map_elements(
+                partial(_str_to_list, dtype=int), return_dtype=pl.List(int)
+            ),
         )
 
     def _read_json(self, filepath: Path) -> None:
@@ -429,6 +442,7 @@ class RecordCatalogue:
             pl.DataFrame(self._records_to_dfdict())
             .with_columns(pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)))
             .with_columns(pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)))
+            .sort(by="timestamp")
             .with_row_count()
         )
 
