@@ -219,9 +219,9 @@ class RecordCatalogue:
             return ",".join([str(i) for i in lst])
 
         return df.with_columns(
-            pl.col("fixed_gain").map_elements(_to_list, return_dtype=list),
-            pl.col("hydrophone_sensitivity").map_elements(_to_list, return_dtype=list),
-            pl.col("hydrophone_SN").map_elements(_to_list, return_dtype=list),
+            pl.col("fixed_gain").map_elements(_to_list, return_dtype=pl.List[pl.Float64]),
+            pl.col("hydrophone_sensitivity").map_elements(_to_list, return_dtype=pl.List[pl.Float64]),
+            pl.col("hydrophone_SN").map_elements(_to_list, return_dtype=pl.List[pl.String]),
         )
 
     def load(self, filepath: Path) -> RecordCatalogue:
