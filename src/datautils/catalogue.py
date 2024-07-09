@@ -171,9 +171,10 @@ class RecordCatalogue:
         if len(files) == 0:
             logging.error("No SHRU files found in directory.")
             raise FileNotFoundError("No SHRU files found in directory.")
+        logging.debug(f"{len(files)} files found for record catalogue.")
 
         records = []
-        for f in files:
+        for j, f in enumerate(files):
             headers, file_format = read_headers(f, file_format=query.data.file_format)
             records_from_file = []
             callback = FileCallbackHandler(file_format)
@@ -198,7 +199,8 @@ class RecordCatalogue:
                 )
             corrected_records = callback.format_records(records_from_file)
             records.extend(corrected_records)
-
+            logging.debug(f"{len(records) + 1} records | {j}/{len(files)} files processed.")
+            
         self.records = records
         self.df = self._records_to_polars_df()
         return self
@@ -217,9 +219,9 @@ class RecordCatalogue:
             return ",".join([str(i) for i in lst])
 
         return df.with_columns(
-            pl.col("fixed_gain").map_elements(_to_list),
-            pl.col("hydrophone_sensitivity").map_elements(_to_list),
-            pl.col("hydrophone_SN").map_elements(_to_list),
+            pl.col("fixed_gain").map_elements(_to_list, return_dtype=pl.Utf8),
+            pl.col("hydrophone_sensitivity").map_elements(_to_list, return_dtype=pl.Utf8),
+            pl.col("hydrophone_SN").map_elements(_to_list, return_dtype=pl.Utf8),
         )
 
     def load(self, filepath: Path) -> RecordCatalogue:
