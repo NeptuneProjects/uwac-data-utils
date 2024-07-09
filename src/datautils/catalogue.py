@@ -219,9 +219,9 @@ class RecordCatalogue:
             return ",".join([str(i) for i in lst])
 
         return df.with_columns(
-            pl.col("fixed_gain").map_elements(_to_list, return_dtype=pl.List[pl.Float64]),
-            pl.col("hydrophone_sensitivity").map_elements(_to_list, return_dtype=pl.List[pl.Float64]),
-            pl.col("hydrophone_SN").map_elements(_to_list, return_dtype=pl.List[pl.Int32]),
+            pl.col("fixed_gain").map_elements(_to_list, return_dtype=pl.List(pl.Float64)),
+            pl.col("hydrophone_sensitivity").map_elements(_to_list, return_dtype=pl.List(pl.Float64)),
+            pl.col("hydrophone_SN").map_elements(_to_list, return_dtype=pl.List(pl.Int32)),
         )
 
     def load(self, filepath: Path) -> RecordCatalogue:
@@ -267,11 +267,11 @@ class RecordCatalogue:
         self.df = pl.read_csv(filepath).with_columns(
             pl.col("timestamp").cast(pl.Datetime(TIME_PRECISION)),
             pl.col("timestamp_orig").cast(pl.Datetime(TIME_PRECISION)),
-            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float), return_dtype=pl.List[pl.Float64]),
+            pl.col("fixed_gain").map_elements(partial(_str_to_list, dtype=float), return_dtype=pl.List(pl.Float64)),
             pl.col("hydrophone_sensitivity").map_elements(
-                partial(_str_to_list, dtype=float), return_dtype=pl.List[pl.Float64]
+                partial(_str_to_list, dtype=float), return_dtype=pl.List(pl.Float64)
             ),
-            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int), return_dtype=pl.List[pl.Int32]),
+            pl.col("hydrophone_SN").map_elements(partial(_str_to_list, dtype=int), return_dtype=pl.List(pl.Int32)),
         )
 
     def _read_json(self, filepath: Path) -> None:
