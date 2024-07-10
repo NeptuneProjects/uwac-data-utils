@@ -166,8 +166,9 @@ class RecordCatalogue:
         Raises:
             FileNotFoundError: If no SHRU files are found in the directory.
         """
-        files = Path(query.data.directory).glob(query.data.glob_pattern)
-        files.sort(key=lambda x: x.name)
+        files = list(Path(query.data.directory).glob(query.data.glob_pattern)).sort(
+            key=lambda x: x.name
+        )
 
         if len(files) == 0:
             logging.error("No SHRU files found in directory.")
